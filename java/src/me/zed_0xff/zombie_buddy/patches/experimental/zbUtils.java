@@ -11,18 +11,20 @@ import java.util.Map;
 
 import me.zed_0xff.zombie_buddy.Accessor;
 import se.krka.kahlua.integration.annotations.LuaMethod;
+import se.krka.kahlua.integration.LuaReturn;
 import se.krka.kahlua.vm.KahluaTable;
+import se.krka.kahlua.vm.LuaClosure;
 import zombie.Lua.LuaManager;
 import zombie.ZomboidFileSystem;
 
 public class zbUtils {
 
-    @LuaMethod(name = "zbInspect", global = true)
+    @LuaMethod(name = "zbinspect", global = true)
     public static KahluaTable zbInspect(Object obj) {
         return zbInspect(obj, false);
     }
 
-    @LuaMethod(name = "zbInspect", global = true)
+    @LuaMethod(name = "zbinspect", global = true)
     public static KahluaTable zbInspect(Object obj, Boolean bPrivate) {
         if (obj == null) {
             return null;
@@ -33,12 +35,12 @@ public class zbUtils {
         return result;
     }
 
-    @LuaMethod(name = "zbMethods", global = true)
+    @LuaMethod(name = "zbmethods", global = true)
     public static KahluaTable zbMethods(Object obj) {
         return zbMethods(obj, false);
     }
 
-    @LuaMethod(name = "zbMethods", global = true)
+    @LuaMethod(name = "zbmethods", global = true)
     public static KahluaTable zbMethods(Object obj, Boolean bPrivate) {
         if (obj == null) {
             return null;
@@ -88,12 +90,12 @@ public class zbUtils {
         return result;
     }
 
-    @LuaMethod(name = "zbFields", global = true)
+    @LuaMethod(name = "zbfields", global = true)
     public static KahluaTable zbFields(Object obj) {
         return zbFields(obj, false);
     }
 
-    @LuaMethod(name = "zbFields", global = true)
+    @LuaMethod(name = "zbfields", global = true)
     public static KahluaTable zbFields(Object obj, Boolean bPrivate) {
         if (obj == null) {
             return null;
@@ -129,22 +131,22 @@ public class zbUtils {
         return result;
     }
 
-    @LuaMethod(name = "zbGet", global = true)
+    @LuaMethod(name = "zbget", global = true)
     public static Object zbGet(Object obj, String name) {
         return Accessor.tryGet(obj, name, null);
     }
 
-    @LuaMethod(name = "zbGet", global = true)
+    @LuaMethod(name = "zbget", global = true)
     public static Object zbGet(Object obj, String name, Object defaultValue) {
         return Accessor.tryGet(obj, name, defaultValue);
     }
 
-    @LuaMethod(name = "zbSet", global = true)
+    @LuaMethod(name = "zbset", global = true)
     public static boolean zbSet(Object obj, String name, Object value) {
         return Accessor.trySet(obj, name, value);
     }
 
-    @LuaMethod(name = "zbCall", global = true)
+    @LuaMethod(name = "zbcall", global = true)
     public static Object zbCall(Object obj, String name, Object... args) throws ReflectiveOperationException {
         return Accessor.callByName(obj, name, args);
     }
@@ -154,7 +156,7 @@ public class zbUtils {
      * Only works for KahluaTable; returns null otherwise. Kahlua has no built-in "keys" API,
      * so we iterate via {@link KahluaTable#iterator()} and collect keys.
      */
-    @LuaMethod(name = "zbKeys", global = true)
+    @LuaMethod(name = "zbkeys", global = true)
     public static KahluaTable zbKeys(Object obj) {
         if (obj instanceof KahluaTable tbl) {
             KahluaTable out = LuaManager.platform.newTable();
@@ -176,7 +178,7 @@ public class zbUtils {
         return null;
     }
 
-    @LuaMethod(name = "zbValues", global = true)
+    @LuaMethod(name = "zbvalues", global = true)
     public static KahluaTable zbValues(Object obj) {
         if (obj instanceof KahluaTable tbl) {
             KahluaTable out = LuaManager.platform.newTable();
@@ -198,12 +200,117 @@ public class zbUtils {
         return null;
     }
 
-    @LuaMethod(name = "zbGrep", global = true)
+    @LuaMethod(name = "zbmap", global = true)
+    public static KahluaTable zbMap(Object obj, LuaClosure closure) {
+        if (obj == null || closure == null) return null;
+
+        if (obj instanceof KahluaTable tbl) {
+            KahluaTable out = LuaManager.platform.newTable();
+            var it = tbl.iterator();
+            while (it.advance()) {
+                Object key = it.getKey();
+                Object value = it.getValue();
+                LuaReturn ret = LuaManager.caller.protectedCall(LuaManager.thread, closure, key, value);
+                if (!ret.isSuccess()) {
+                    String msg = ret.getErrorString();
+                    String st = ret.getLuaStackTrace();
+                    throw new RuntimeException((msg != null ? msg : "lua error") + (st != null ? ("\n" + st) : ""));
+                }
+                if (ret.isEmpty()) {
+                    continue;
+                }
+
+                Object newKey;
+                Object newVal;
+                if (ret.size() == 1) {
+                    newKey = key;
+                    newVal = ret.get(0);
+                } else {
+                    newKey = ret.get(0);
+                    newVal = ret.get(1);
+                }
+
+                // nil key is not allowed in Lua tables; treat it as "skip"
+                if (newKey != null) {
+                    out.rawset(newKey, newVal);
+                }
+            }
+            return out;
+        }
+
+        if (obj instanceof Map<?, ?> map) {
+            KahluaTable out = LuaManager.platform.newTable();
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                Object key = e.getKey();
+                Object value = e.getValue();
+                LuaReturn ret = LuaManager.caller.protectedCall(LuaManager.thread, closure, key, value);
+                if (!ret.isSuccess()) {
+                    String msg = ret.getErrorString();
+                    String st = ret.getLuaStackTrace();
+                    throw new RuntimeException((msg != null ? msg : "lua error") + (st != null ? ("\n" + st) : ""));
+                }
+                if (ret.isEmpty()) {
+                    continue;
+                }
+
+                Object newKey;
+                Object newVal;
+                if (ret.size() == 1) {
+                    newKey = key;
+                    newVal = ret.get(0);
+                } else {
+                    newKey = ret.get(0);
+                    newVal = ret.get(1);
+                }
+
+                if (newKey != null) {
+                    out.rawset(newKey, newVal);
+                }
+            }
+            return out;
+        }
+
+        if (obj instanceof List<?> list) {
+            KahluaTable out = LuaManager.platform.newTable();
+            for (int i = 0; i < list.size(); i++) {
+                Object key = Double.valueOf(i + 1);
+                Object value = list.get(i);
+                LuaReturn ret = LuaManager.caller.protectedCall(LuaManager.thread, closure, key, value);
+                if (!ret.isSuccess()) {
+                    String msg = ret.getErrorString();
+                    String st = ret.getLuaStackTrace();
+                    throw new RuntimeException((msg != null ? msg : "lua error") + (st != null ? ("\n" + st) : ""));
+                }
+                if (ret.isEmpty()) {
+                    continue;
+                }
+
+                Object newKey;
+                Object newVal;
+                if (ret.size() == 1) {
+                    newKey = key;
+                    newVal = ret.get(0);
+                } else {
+                    newKey = ret.get(0);
+                    newVal = ret.get(1);
+                }
+
+                if (newKey != null) {
+                    out.rawset(newKey, newVal);
+                }
+            }
+            return out;
+        }
+
+        return null;
+    }
+
+    @LuaMethod(name = "zbgrep", global = true)
     public static KahluaTable zbGrep(Object obj, String pattern) {
         return zbGrep(obj, pattern, false);
     }
 
-    @LuaMethod(name = "zbGrep", global = true)
+    @LuaMethod(name = "zbgrep", global = true)
     public static KahluaTable zbGrep(Object obj, String pattern, boolean caseSensitive) {
         if (obj == null || pattern == null) return null;
         KahluaTable out = LuaManager.platform.newTable();
@@ -261,7 +368,7 @@ public class zbUtils {
      * of lines that contain the given substring (1-based indices). Returns null if the
      * file cannot be read or substring is null/empty.
      */
-    @LuaMethod(name = "zbGrepLog", global = true)
+    @LuaMethod(name = "zbgreplog", global = true)
     public static KahluaTable zbGrepLog(String substring) {
         if (substring == null || substring.isEmpty()) {
             return null;
