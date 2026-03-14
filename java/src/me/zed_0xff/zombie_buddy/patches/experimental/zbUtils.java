@@ -6,11 +6,14 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import me.zed_0xff.zombie_buddy.Accessor;
 import me.zed_0xff.zombie_buddy.Utils;
@@ -36,6 +39,28 @@ public class zbUtils {
             return null;
         }
         KahluaTable result = LuaManager.platform.newTable();
+        result.rawset("type", obj.getClass().getName());
+        // Best-effort generic element type info for collections (HashSet, ArrayList, etc.)
+        if (obj instanceof Collection<?> col) {
+            Set<String> typeNames = new HashSet<>();
+            for (Object e : col) {
+                if (e != null) {
+                    typeNames.add(e.getClass().getName());
+                    if (typeNames.size() >= 20) {
+                        typeNames.add("...");
+                        break;
+                    }
+                }
+            }
+            if (!typeNames.isEmpty()) {
+                KahluaTable elemTypes = LuaManager.platform.newTable();
+                int i = 1;
+                for (String tn : typeNames) {
+                    elemTypes.rawset(Double.valueOf(i++), tn);
+                }
+                result.rawset("element_types", elemTypes);
+            }
+        }
         result.rawset("fields", zbFields(obj, bPrivate));
         result.rawset("methods", zbMethods(obj, bPrivate));
         return result;
