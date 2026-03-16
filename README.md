@@ -14,6 +14,10 @@ ZombieBuddy is a Java agent-based framework that allows modders to:
 
 Built on top of [ByteBuddy](https://bytebuddy.net/), ZombieBuddy provides a clean, annotation-based API for intercepting and modifying game behavior without requiring access to the game's source code.
 
+## Developer / Debug helpers
+
+See [`doc/DevDebugFunctions.md`](doc/DevDebugFunctions.md) for Lua dev/debug utilities (`zbinspect`, `zbmethods`, `zbgrep`, `zbmap`, `zbgreplog`, etc.) exposed by ZombieBuddy for introspecting and manipulating game/Java objects at runtime.
+
 ## ☕ Support the Project
 
 If you find ZombieBuddy useful and would like to support its development, consider buying me a coffee! Your support helps keep this project maintained and improved.

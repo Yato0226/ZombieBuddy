@@ -449,8 +449,15 @@ public class zbUtils {
     }
 
     @LuaMethod(name = "zbgrep", global = true)
-    public static KahluaTable zbGrep(Object obj, String pattern) {
-        return zbGrep(obj, pattern, false);
+    public static KahluaTable zbGrep(Object obj, Object patternOrPredicate) {
+        if (obj == null || patternOrPredicate == null) return null;
+        if (patternOrPredicate instanceof String s) {
+            return zbGrep(obj, s, false);
+        }
+        if (isCallable(patternOrPredicate)) {
+            return zbGrepWithPredicate(obj, patternOrPredicate);
+        }
+        return null;
     }
 
     @LuaMethod(name = "zbgrep", global = true)
@@ -472,7 +479,7 @@ public class zbUtils {
             for (Object item : list) {
                 String s = item != null ? item.toString() : "null";
                 if (matches(s, pattern, caseSensitive)) {
-                    out.rawset(i++, item);
+                    out.rawset(Double.valueOf(i++), item);
                 }
             }
         } else if (obj instanceof Map<?, ?> map) {
@@ -490,6 +497,60 @@ public class zbUtils {
             KahluaTable result = LuaManager.platform.newTable();
             result.rawset("fields", zbGrep(inspected.rawget("fields"), pattern, caseSensitive));
             result.rawset("methods", zbGrep(inspected.rawget("methods"), pattern, caseSensitive));
+            return result;
+        }
+        return out;
+    }
+
+    private static boolean isCallable(Object o) {
+        return o instanceof LuaClosure || o instanceof JavaFunction;
+    }
+
+    private static boolean callPredicateTruthy(Object callable, Object... args) {
+        LuaReturn ret = LuaManager.caller.protectedCall(LuaManager.thread, callable, args);
+        if (!ret.isSuccess()) {
+            String msg = ret.getErrorString();
+            String st = ret.getLuaStackTrace();
+            throw new RuntimeException((msg != null ? msg : "lua error") + (st != null ? ("\n" + st) : ""));
+        }
+        if (ret.isEmpty()) return false;
+        Object first = ret.get(0);
+        if (first == null || Boolean.FALSE.equals(first)) return false;
+        return true;
+    }
+
+    private static KahluaTable zbGrepWithPredicate(Object obj, Object predicate) {
+        KahluaTable out = LuaManager.platform.newTable();
+
+        if (obj instanceof KahluaTable tbl) {
+            var it = tbl.iterator();
+            while (it.advance()) {
+                Object key = it.getKey();
+                Object value = it.getValue();
+                if (callPredicateTruthy(predicate, key, value)) {
+                    out.rawset(key, value);
+                }
+            }
+        } else if (obj instanceof List<?> list) {
+            int i = 1;
+            for (Object item : list) {
+                if (callPredicateTruthy(predicate, item)) {
+                    out.rawset(Double.valueOf(i++), item);
+                }
+            }
+        } else if (obj instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                if (callPredicateTruthy(predicate, e.getKey(), e.getValue())) {
+                    out.rawset(e.getKey(), e.getValue());
+                }
+            }
+        } else {
+            KahluaTable inspected = zbInspect(obj);
+            if (inspected == null) return null;
+
+            KahluaTable result = LuaManager.platform.newTable();
+            result.rawset("fields", zbGrepWithPredicate(inspected.rawget("fields"), predicate));
+            result.rawset("methods", zbGrepWithPredicate(inspected.rawget("methods"), predicate));
             return result;
         }
         return out;
