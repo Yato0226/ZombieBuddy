@@ -91,6 +91,7 @@ public class ZombieBuddy {
             Class<?> c = obj.getClass();
             tbl.rawset("className", c.getName());
             tbl.rawset("simpleName", c.getSimpleName());
+            tbl.rawset("name", obj.toString());
             Utils.addInvokersInfo(tbl, obj);
             return tbl;
         }
