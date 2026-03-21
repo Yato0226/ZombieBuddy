@@ -11,12 +11,36 @@ public class Logger {
     private static PrintStream out = System.out;
     private static PrintStream err = System.err;
 
+    public static void debug(String message, Object... args) {
+        if (Loader.g_verbosity < 1) return;
+
+        if (args != null && args.length > 0) {
+            message += " " + formatArgs(args);
+        }
+
+        message = PREFIX + "[d] " + message;
+        try {
+            System.out.println(message);
+        } catch (Exception e) { // might fail on game boot
+            out.println(message);
+        }
+    }
+
     public static void info(String message) {
         message = PREFIX + message;
         try {
             System.out.println(message);
         } catch (Exception e) { // might fail on game boot
             out.println(message);
+        }
+    }
+
+    public static void warn(String message) {
+        message = PREFIX + message;
+        try {
+            System.err.println(message);
+        } catch (Exception e) { // see above
+            err.println(message);
         }
     }
 
