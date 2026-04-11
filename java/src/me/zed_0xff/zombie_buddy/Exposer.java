@@ -7,6 +7,7 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
@@ -32,6 +33,8 @@ public class Exposer {
     }
 
     private static final HashSet<Class<?>> g_exposed_classes = new HashSet<>();
+    private static final HashMap<Class<?>, HashSet<String>> g_exposed_methods = new HashMap<>();
+
     /** Classes that have at least one method with @LuaMethod(global=true); may or may not be in g_exposed_classes. */
     private static final HashSet<Class<?>> g_classesWithGlobalLuaMethod = new HashSet<>();
 
@@ -74,15 +77,39 @@ public class Exposer {
 
     /** Resolves the class by name and exposes it to Lua. Returns true if the class was found and exposed, false otherwise. */
     public static boolean exposeClassToLua(String className) {
-        if (className == null || className.isEmpty()) {
+        Class<?> cls = Accessor.findClass(className);
+        if (cls == null) {
+            Logger.warn("exposeClass(\"" + className + "\"): class not found");
             return false;
         }
-        try {
-            Class<?> cls = Class.forName(className);
-            exposeClassToLua(cls);
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
+        exposeClassToLua(cls);
+        return true;
+    }
+
+    public static void exposeClass(Class<?> cls) { exposeClassToLua(cls); }
+    public static boolean exposeClass(String className) { return exposeClassToLua(className); }
+
+    // B42.15 introduced @HiddenFromLua annotation, exposeMethod() effectively undoes that for specific methods.
+    public static void exposeMethod(String className, String methodName) {
+        Class<?> cls = Accessor.findClass(className);
+        if (cls == null) {
+            Logger.warn("exposeMethod(\"" + className + "\", \"" + methodName + "\"): class not found");
+            return;
+        }
+        g_exposed_methods.computeIfAbsent(cls, k -> new HashSet<>()).add(methodName);
+
+        var exposer = LuaManager.exposer;
+        if (exposer != null) {
+            Logger.info("Exposing method " + cls.getName() + "." + methodName + "()");
+            for (var method : cls.getMethods()) {
+                if (method.getName().equals(methodName)) {
+                    try {
+                        exposer.exposeMethod(cls, method, method.getName(), LuaManager.env);
+                    } catch (Exception e) {
+                        Logger.error("exposeMethod(" + cls.getName() + ", " + method.getName() + "): " + e.getMessage());
+                    }
+                }
+            }
         }
     }
 
@@ -106,8 +133,22 @@ public class Exposer {
             return;
         }
         for (Class<?> cls : getExposedClasses()) {
-            Logger.info("Exposing class to Lua: " + cls.getName());
+            Logger.info("Exposing class " + cls.getName());
             exposer.setExposed(cls);
+        }
+        for (var entry : g_exposed_methods.entrySet()) {
+            Class<?> cls = entry.getKey();
+            HashSet<String> methodsSet = entry.getValue();
+            for (var method : cls.getMethods()) {
+                if (methodsSet.contains(method.getName())) {
+                    Logger.info("Exposing method " + cls.getName() + "." + method.getName() + "()");
+                    try {
+                        exposer.exposeMethod(cls, method, method.getName(), LuaManager.env);
+                    } catch (Exception e) {
+                        Logger.error("exposeMethod(" + cls.getName() + ", " + method.getName() + "): " + e.getMessage());
+                    }
+                }
+            }
         }
         for (Class<?> cls : getClassesWithGlobalLuaMethod()) {
             Object instance = newInstance(cls);
