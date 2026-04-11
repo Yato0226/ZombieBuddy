@@ -113,6 +113,7 @@ public final class Accessor {
         }
     }
 
+    // returns class or null, never throws
     public static Class<?> findClass(String... classNames) {
         if (classNames == null || classNames.length == 0) {
             return null;

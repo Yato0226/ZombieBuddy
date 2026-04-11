@@ -11,12 +11,12 @@ public class Patch_LuaManager {
     public class Patch_init {
         @Patch.OnEnter
         public static void enter() {
-            Logger.info("before LuaManager.init");
+            Logger.debug("before LuaManager.init");
         }
 
         @Patch.OnExit
         public static void exit() {
-            Logger.info("after LuaManager.init");
+            Logger.debug("after LuaManager.init");
             if (!isInitialized) {
                 isInitialized = true;
                 if (Agent.arguments.containsKey("lua_init_script")) {

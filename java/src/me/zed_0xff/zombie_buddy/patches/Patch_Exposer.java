@@ -7,13 +7,13 @@ public class Patch_Exposer {
     public static class Patch_exposeAll {
         @Patch.OnEnter
         public static void enter() {
-            Logger.info("before Exposer.exposeAll");
+            Logger.debug("before Exposer.exposeAll");
             Exposer.runExposeAll(); // calls ZB Exposer
         }
 
         @Patch.OnExit
         public static void exit() {
-            Logger.info("after Exposer.exposeAll");
+            Logger.debug("after Exposer.exposeAll");
             EventsAPI.init();
 
             if (Agent.isExperimental()) {
