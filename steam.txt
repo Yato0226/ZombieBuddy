@@ -1,11 +1,9 @@
-[h1]ZombieBuddy[/h1]
-
 A framework that enables advanced Java mods for Project Zomboid.
 
 [b]What it does:[/b]
 ZombieBuddy is required by some mods to work. If a mod tells you to install ZombieBuddy, follow the instructions below.
 
-[b]📦 Installation (One-Time Setup):[/b]
+[h1]Installation (One-Time Setup)[/h1]
 
 [b]Step 1:[/b] Subscribe to ZombieBuddy on Steam Workshop
 
@@ -46,31 +44,40 @@ to your Project Zomboid folder:
 
 [b]Step 3:[/b] After this setup, all mods that require ZombieBuddy will work automatically!
 
-[b]⚠️ Security Warning:[/b]
+[h1]Uninstall[/h1]
+[list]
+[*] [b]Disable the agent first:[/b] Open Project Zomboid → Properties → clear the Launch Options line
+[*] Delete zbNative.dll and ZombieBuddy.jar from your Project Zomboid install directory
+[*] Unsubscribe from ZombieBuddy on Steam
+[/list]
+
+[h1]⚠️ Security Warning ⚠️[/h1]
 Java mods enabled through ZombieBuddy have unrestricted access to your system. Only install mods from sources you trust.
 
-[b]Save compatibility:[/b]
-Safe to add or remove on existing saves.
-
-[b]Tested on:[/b]
+[h1]FAQ[/h1]
 [list]
-[*] B41
-[*] B42.12
-[*] B42.13.1
-[*] B42.13.2
-[*] 42.14 (unstable)
+    [*][b]Is it a virus?[/b]
+    No.
+
+    [*][b]How to start game in debug mode?[/b]
+    [code]-agentlib:zbNative -- -debug[/code]
+
+    [*][b]Do I need to repeat manual installation after I upgrade/downgrade/validate game?[/b]
+    No.
+
+    [*][b]Works on MP?[/b]
+    Yes.
+
+    [*][b]Save compatibility?[/b]
+    Safe to add or remove on existing saves.
+
+    [*][b]Supported game versions?[/b]
+    B41, B42.12, B42.13, B42.14, B42.15, B42.16
 [/list]
 
-[b]FAQ[/b]
-[list]
-[*] [b]How to start game in debug mode?[/b] [code]-agentlib:zbNative -- -debug[/code]
-[*] [b]Do I need to repeat manual installation after I upgrade/downgrade/validate game?[/b] - No.
-[*] [b]Works on MP?[/b] - Yes.
-[/list]
+[h1]Links[/h1]
+[url=https://github.com/zed-0xff/ZombieBuddy]GitHub Repository[/url]
 
-[b]Links:[/b]
-[url=https://github.com/zed-0xff/ZombieBuddy]GitHub Repository[/url] (for modders)
-
-[b]☕ Support the Project:[/b]
+[h1]Support the Project[/h1]
 If you find ZombieBuddy useful, consider supporting its development:
 [url=https://ko-fi.com/zed_0xff][img]https://i.imgur.com/Utx6OIH.png[/img][/url]
