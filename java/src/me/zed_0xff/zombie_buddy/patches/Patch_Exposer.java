@@ -8,12 +8,13 @@ public class Patch_Exposer {
         @Patch.OnEnter
         public static void enter() {
             Logger.debug("before Exposer.exposeAll");
-            Exposer.runExposeAll(); // calls ZB Exposer
+            Exposer.beforeExposeAll();
         }
 
         @Patch.OnExit
         public static void exit() {
             Logger.debug("after Exposer.exposeAll");
+            Exposer.afterExposeAll();
             EventsAPI.init();
 
             if (Agent.isExperimental()) {

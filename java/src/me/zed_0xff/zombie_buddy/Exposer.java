@@ -89,6 +89,22 @@ public class Exposer {
     public static void exposeClass(Class<?> cls) { exposeClassToLua(cls); }
     public static boolean exposeClass(String className) { return exposeClassToLua(className); }
 
+    private static void exposeMethodNow(Class<?> cls, String methodName) {
+        var exposer = LuaManager.exposer;
+        if (exposer != null) {
+            Logger.info("Exposing method " + cls.getName() + "." + methodName + "()");
+            for (var method : cls.getMethods()) {
+                if (method.getName().equals(methodName)) {
+                    try {
+                        exposer.exposeMethod(cls, method, method.getName(), LuaManager.env);
+                    } catch (Exception e) {
+                        Logger.error("exposeMethod(" + cls.getName() + ", " + method.getName() + "): " + e.getMessage());
+                    }
+                }
+            }
+        }
+    }
+
     // B42.15 introduced @HiddenFromLua annotation, exposeMethod() effectively undoes that for specific methods.
     public static void exposeMethod(String className, String methodName) {
         Class<?> cls = Accessor.findClass(className);
@@ -97,20 +113,7 @@ public class Exposer {
             return;
         }
         g_exposed_methods.computeIfAbsent(cls, k -> new HashSet<>()).add(methodName);
-
-        var exposer = LuaManager.exposer;
-        if (exposer != null) {
-            Logger.info("Exposing method " + cls.getName() + "." + methodName + "()");
-            for (var method : cls.getMethods()) {
-                if (method.getName().equals(methodName)) {
-                    try {
-                        exposer.exposeMethod(cls, method, method.getName(), null);
-                    } catch (Exception e) {
-                        Logger.error("exposeMethod(" + cls.getName() + ", " + method.getName() + "): " + e.getMessage());
-                    }
-                }
-            }
-        }
+        exposeMethodNow(cls, methodName);
     }
 
     public static List<Class<?>> getExposedClasses() {
@@ -126,7 +129,7 @@ public class Exposer {
      * and global functions from {@link #getClassesWithGlobalLuaMethod()} using the
      * game's LuaManager.exposer. Call this from the Exposer.exposeAll patch OnEnter.
      */
-    public static void runExposeAll() {
+    public static void beforeExposeAll() {
         var exposer = LuaManager.exposer;
         if (exposer == null) {
             Logger.info("Error! LuaManager.exposer is null!");
@@ -135,20 +138,6 @@ public class Exposer {
         for (Class<?> cls : getExposedClasses()) {
             Logger.info("Exposing class " + cls.getName());
             exposer.setExposed(cls);
-        }
-        for (var entry : g_exposed_methods.entrySet()) {
-            Class<?> cls = entry.getKey();
-            HashSet<String> methodsSet = entry.getValue();
-            for (var method : cls.getMethods()) {
-                if (methodsSet.contains(method.getName())) {
-                    Logger.info("Exposing method " + cls.getName() + "." + method.getName() + "()");
-                    try {
-                        exposer.exposeMethod(cls, method, method.getName(), null);
-                    } catch (Exception e) {
-                        Logger.error("exposeMethod(" + cls.getName() + ", " + method.getName() + "): " + e.getMessage());
-                    }
-                }
-            }
         }
         for (Class<?> cls : getClassesWithGlobalLuaMethod()) {
             Object instance = newInstance(cls);
@@ -159,6 +148,17 @@ public class Exposer {
                 } catch (Exception e) {
                     Logger.error("exposeGlobalFunctions(" + cls.getName() + "): " + e.getMessage());
                 }
+            }
+        }
+    }
+
+    public static void afterExposeAll() {
+        // if individual method is exposed in beforeExposeAll(), then PZ Exposer thinks that whole class is already exposed,
+        // and skips exposing the rest of the methods in that class.
+        for (var entry : g_exposed_methods.entrySet()) {
+            Class<?> cls = entry.getKey();
+            for (String methodName : entry.getValue() ) {
+                exposeMethodNow(cls, methodName);
             }
         }
     }
