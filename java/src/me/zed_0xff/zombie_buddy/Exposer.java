@@ -104,7 +104,7 @@ public class Exposer {
             for (var method : cls.getMethods()) {
                 if (method.getName().equals(methodName)) {
                     try {
-                        exposer.exposeMethod(cls, method, method.getName(), LuaManager.env);
+                        exposer.exposeMethod(cls, method, method.getName(), null);
                     } catch (Exception e) {
                         Logger.error("exposeMethod(" + cls.getName() + ", " + method.getName() + "): " + e.getMessage());
                     }
@@ -143,7 +143,7 @@ public class Exposer {
                 if (methodsSet.contains(method.getName())) {
                     Logger.info("Exposing method " + cls.getName() + "." + method.getName() + "()");
                     try {
-                        exposer.exposeMethod(cls, method, method.getName(), LuaManager.env);
+                        exposer.exposeMethod(cls, method, method.getName(), null);
                     } catch (Exception e) {
                         Logger.error("exposeMethod(" + cls.getName() + ", " + method.getName() + "): " + e.getMessage());
                     }
