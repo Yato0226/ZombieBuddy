@@ -36,10 +36,10 @@ public class Loader {
     public static Instrumentation g_instrumentation;
     public static int g_verbosity = 0;
 
-    private static final String APPROVALS_FILE_NAME = "java_mod_approvals.properties";
-    private static final String POLICY_PROMPT = "prompt";
-    private static final String POLICY_DENY_NEW = "deny-new";
-    private static final String POLICY_ALLOW_ALL = "allow-all";
+    private static final String APPROVALS_FILE_NAME = "java_mod_approvals.txt";
+    private static final String POLICY_PROMPT       = "prompt";
+    private static final String POLICY_DENY_NEW     = "deny-new";
+    private static final String POLICY_ALLOW_ALL    = "allow-all";
     private static final Set<String> VALID_POLICIES = Set.of(POLICY_PROMPT, POLICY_DENY_NEW, POLICY_ALLOW_ALL);
 
     // Write-once policy: must be set during Agent.premain, before any other Java
@@ -72,6 +72,22 @@ public class Loader {
 
     static Set<String> g_known_classes = new HashSet<>();
     static Set<File> g_known_jars = new HashSet<>();
+
+    // Decision records use the composite key "<modId>|<sha256>" and a value
+    // of "yes" or "no". Same encoding for both the persistent approvals file
+    // and the in-memory session map, so matching is DRY. A JAR with a new
+    // hash produces a new key → the user is re-prompted, while old records
+    // for previous hashes are preserved (rollback = no re-prompt).
+    private static final String KEY_SEP = "|";
+    private static final String DECISION_YES = "yes";
+    private static final String DECISION_NO  = "no";
+    private static final Map<String, String> g_sessionDecisions = new HashMap<>();
+
+    private enum Approval { ALLOW_PERSIST, ALLOW_SESSION, DENY_PERSIST, DENY_SESSION }
+
+    private static String recordKey(String modId, String hash) {
+        return modId + KEY_SEP + hash;
+    }
 
     // Key for grouping patches by class+method
     private static record PatchTarget(String className, String methodName) {}
@@ -239,7 +255,7 @@ public class Loader {
             Path p = getApprovalsFilePath();
             if (p.getParent() != null) Files.createDirectories(p.getParent());
             try (FileOutputStream fos = new FileOutputStream(p.toFile())) {
-                props.store(fos, "ZombieBuddy Java mod approvals (modId -> sha256)");
+                props.store(fos, "ZombieBuddy Java mod decisions (modId|sha256 -> yes | no)");
             }
         } catch (Exception e) {
             Logger.error("Could not save Java mod approvals: " + e);
@@ -265,36 +281,31 @@ public class Loader {
         }
     }
 
+    private static final String DIALOG_TITLE = "ZombieBuddy Java mod approval";
+
     /**
-     * Uses LWJGL's bundled TinyFD instead of AWT/Swing: PZ launches with
-     * {@code -Djava.awt.headless=true}, so Swing throws {@link java.awt.HeadlessException}
-     * even after resetting the cached headless flag. TinyFD is a native dialog
-     * already linked into the game and works on headed PZ clients on all three
-     * OSes. On a real dedicated server there's no display, TinyFD returns false
-     * / throws, and we fall through to denying the mod.
+     * Shows a yes/no TinyFD dialog. Returns:
+     *   TRUE  — Yes, FALSE — No,
+     *   null  — no dialog shown (dialog unavailable / native error).
+     * Using LWJGL's bundled TinyFD instead of Swing because PZ launches with
+     * {@code -Djava.awt.headless=true}, which makes every AWT call throw
+     * {@link java.awt.HeadlessException} no matter how hard we poke the cache.
      */
-    private static boolean askUserApproveJar(String modId, File jarFile, String sha256) {
+    private static Boolean tinyfdYesNo(String msg) {
         Class<?> dialogClass = Accessor.findClass("org.lwjgl.util.tinyfd.TinyFileDialogs");
         if (dialogClass == null) {
             if (Core.getInstance().getGameVersion().isGreaterThan(GameVersion.parse("42.14"))) {
-                Logger.error("askUserApproveJar(): game version is > 42.14, but TinyFileDialogs not found! returning false");
-                return false;
+                Logger.error("tinyfdYesNo(): game version > 42.14 but TinyFileDialogs missing; returning null");
+                return null;
             }
-            Logger.info("askUserApproveJar(): game version is < 42.15 and TinyFileDialogs not found. returning true");
-            return true;
+            Logger.info("tinyfdYesNo(): pre-42.15 and TinyFileDialogs missing; defaulting YES");
+            return Boolean.TRUE;
         }
-
-        String msg = "Allow Java mod to load?\n\n"
-            + "Mod: " + modId + "\n\n"
-            + "JAR: " + jarFile + "\n\n"
-            + "SHA-256: " + sha256 + "\n\n"
-            + "Only allow if you trust this mod source.";
-
         try {
             Object result = Accessor.callByName(
                 dialogClass,
                 "tinyfd_messageBox",
-                "ZombieBuddy Java mod approval",
+                DIALOG_TITLE,
                 msg,
                 "yesno",
                 "warning",
@@ -302,9 +313,49 @@ public class Loader {
             );
             return Boolean.TRUE.equals(result);
         } catch (Throwable t) {
-            Logger.error("Could not show Java mod approval dialog: " + t);
-            return false;
+            Logger.error("Could not show dialog: " + t);
+            return null;
         }
+    }
+
+    /**
+     * Two-stage prompt: allow/deny, then (always) "remember this decision?".
+     * Pressing No / closing a dialog defaults to session-only — never silently
+     * persists on an accident.
+     */
+    private static Approval askUserApproveJar(String modId, File jarFile, String sha256) {
+        String modified = (jarFile != null && jarFile.exists())
+            ? java.time.Instant.ofEpochMilli(jarFile.lastModified())
+                .atZone(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z"))
+            : "<unknown>";
+        Boolean allow = tinyfdYesNo(
+            "Allow Java mod to load?\n\n"
+                + "Mod: " + modId + "\n\n"
+                + "JAR: " + jarFile + "\n\n"
+                + "Modified: " + modified + "\n\n"
+                + "SHA-256: " + sha256 + "\n\n"
+                + "Only allow if you trust this mod source."
+        );
+        if (allow == null) return Approval.DENY_SESSION; // dialog failed — fail closed, but don't persist
+
+        String verb = allow ? "approval" : "denial";
+        String yesHint = allow
+            ? "Yes — save to ~/.zombie_buddy/" + APPROVALS_FILE_NAME + " and do not ask again."
+            : "Yes — save as denied; this JAR will be blocked without asking.";
+        String noHint = allow
+            ? "No  — allow only for this game session."
+            : "No  — deny only for this game session (ask again next launch).";
+
+        Boolean remember = tinyfdYesNo(
+            "Remember this " + verb + " across game sessions?\n\n"
+                + "Mod: " + modId + "\n\n"
+                + yesHint + "\n\n"
+                + noHint
+        );
+        boolean persist = Boolean.TRUE.equals(remember);
+        if (allow)  return persist ? Approval.ALLOW_PERSIST : Approval.ALLOW_SESSION;
+        else        return persist ? Approval.DENY_PERSIST  : Approval.DENY_SESSION;
     }
 
     private static boolean isJarAllowedByPolicy(String modId, JavaModInfo jModInfo, Properties approvals) {
@@ -313,22 +364,41 @@ public class Loader {
         if (hash == null) return false;
 
         String policy = g_jarPolicy;
+        String modKey = modId != null && !modId.isEmpty() ? modId : jModInfo.javaPkgName();
+        String recKey = recordKey(modKey, hash);
 
-        String key = modId != null && !modId.isEmpty() ? modId : jModInfo.javaPkgName();
-        String known = approvals.getProperty(key);
-        boolean knownSame = hash.equalsIgnoreCase(known);
+        String decision = approvals.getProperty(recKey);
+        if (decision == null) decision = g_sessionDecisions.get(recKey);
+        if (DECISION_YES.equals(decision)) return true;
+        if (DECISION_NO.equals(decision)) {
+            Logger.warn("Blocking Java mod by stored denial: " + modKey + " (" + jarFile + ")");
+            return false;
+        }
 
-        if (knownSame || POLICY_ALLOW_ALL.equals(policy)) {
-            approvals.setProperty(key, hash);
+        if (POLICY_ALLOW_ALL.equals(policy)) {
+            approvals.setProperty(recKey, DECISION_YES);
             return true;
         }
         if (POLICY_DENY_NEW.equals(policy)) {
-            Logger.warn("Blocking Java mod by policy=deny-new: " + key + " (" + jarFile + ")");
+            Logger.warn("Blocking Java mod by policy=deny-new: " + modKey + " (" + jarFile + ")");
             return false;
         }
-        boolean approved = askUserApproveJar(key, jarFile, hash);
-        if (approved) approvals.setProperty(key, hash);
-        return approved;
+
+        switch (askUserApproveJar(modKey, jarFile, hash)) {
+            case ALLOW_PERSIST:
+                approvals.setProperty(recKey, DECISION_YES);
+                return true;
+            case ALLOW_SESSION:
+                g_sessionDecisions.put(recKey, DECISION_YES);
+                return true;
+            case DENY_PERSIST:
+                approvals.setProperty(recKey, DECISION_NO);
+                return false;
+            case DENY_SESSION:
+            default:
+                g_sessionDecisions.put(recKey, DECISION_NO);
+                return false;
+        }
     }
 
     public static void loadMods(ArrayList<String> mods) {
@@ -383,7 +453,7 @@ public class Loader {
         ArrayList<Boolean> shouldSkipList = new ArrayList<>();
         ArrayList<String> skipReasons = new ArrayList<>();
         Properties approvals = loadJarApprovals();
-        boolean approvalsChanged = false;
+        Properties approvalsBefore = (Properties) approvals.clone();
         for (int i = 0; i < jModInfos.size(); i++) {
             JavaModInfo jModInfo = jModInfos.get(i);
             String modId = i < jModIds.size() ? jModIds.get(i) : jModInfo.javaPkgName();
@@ -405,24 +475,16 @@ public class Loader {
             }
 
             // Enforce Java JAR policy for new/changed binaries.
-            if (!shouldSkip) {
-                String approvalKey = modId != null && !modId.isEmpty() ? modId : jModInfo.javaPkgName();
-                String prevApproval = approvals.getProperty(approvalKey);
-                if (!isJarAllowedByPolicy(modId, jModInfo, approvals)) {
-                    shouldSkip = true;
-                    skipReason = " (blocked by policy=" + g_jarPolicy + ", modId=" + modId + ")";
-                }
-                String nowApproval = approvals.getProperty(approvalKey);
-                if ((prevApproval == null && nowApproval != null) || (prevApproval != null && !prevApproval.equals(nowApproval))) {
-                    approvalsChanged = true;
-                }
+            if (!shouldSkip && !isJarAllowedByPolicy(modId, jModInfo, approvals)) {
+                shouldSkip = true;
+                skipReason = " (blocked by policy=" + g_jarPolicy + ", modId=" + modId + ")";
             }
             
             shouldSkipList.add(shouldSkip);
             skipReasons.add(skipReason);
         }
 
-        if (approvalsChanged) {
+        if (!approvalsBefore.equals(approvals)) {
             saveJarApprovals(approvals);
         }
         
