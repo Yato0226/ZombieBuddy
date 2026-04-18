@@ -38,6 +38,12 @@ public class Agent {
             }
         }
 
+        // Java mod loading policy for unknown/changed JARs.
+        // Values: prompt (default), deny-new, allow-all
+        // Always lock, even if no arg was passed, so a later-loading Java mod
+        // can't be the first to call Loader.setPolicy().
+        Loader.setPolicy(arguments.getOrDefault("policy", "prompt"));
+
         // Check ZB_VERBOSITY environment variable - it overrides command line value
         String envVerbosity = System.getenv("ZB_VERBOSITY");
         if (envVerbosity != null && !envVerbosity.isEmpty()) {

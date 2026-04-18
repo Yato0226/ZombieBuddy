@@ -1,13 +1,19 @@
 package me.zed_0xff.zombie_buddy;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.lang.ClassLoader;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Properties;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.List;
@@ -22,11 +28,47 @@ import net.bytebuddy.implementation.MethodCall;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.matcher.ElementMatchers;
 
+import zombie.core.Core;
+import zombie.core.GameVersion;
 import zombie.gameStates.ChooseGameInfo;
 
 public class Loader {
     public static Instrumentation g_instrumentation;
     public static int g_verbosity = 0;
+
+    private static final String APPROVALS_FILE_NAME = "java_mod_approvals.properties";
+    private static final String POLICY_PROMPT = "prompt";
+    private static final String POLICY_DENY_NEW = "deny-new";
+    private static final String POLICY_ALLOW_ALL = "allow-all";
+    private static final Set<String> VALID_POLICIES = Set.of(POLICY_PROMPT, POLICY_DENY_NEW, POLICY_ALLOW_ALL);
+
+    // Write-once policy: must be set during Agent.premain, before any other Java
+    // mod is on the classpath. Subsequent set attempts are logged and ignored,
+    // so a later-loading Java mod cannot call Loader.setPolicy("allow-all").
+    // (Reflection/bytecode-redefinition can still bypass this — same threat
+    // model as the approvals file; see ~/.zombie_buddy/ comment.)
+    private static volatile String g_jarPolicy = POLICY_PROMPT;
+    private static volatile boolean g_jarPolicyLocked = false;
+
+    public static synchronized void setPolicy(String value) {
+        if (g_jarPolicyLocked) {
+            Logger.warn("Ignoring attempt to change policy (already locked at '" + g_jarPolicy + "')");
+            return;
+        }
+        String v = value == null ? "" : value.trim().toLowerCase();
+        if (!VALID_POLICIES.contains(v)) {
+            Logger.warn("Invalid policy '" + value + "', keeping '" + g_jarPolicy + "'. Valid: " + VALID_POLICIES);
+            g_jarPolicyLocked = true;
+            return;
+        }
+        g_jarPolicy = v;
+        g_jarPolicyLocked = true;
+        Logger.info("Policy set to '" + g_jarPolicy + "' (locked)");
+    }
+
+    public static String getPolicy() {
+        return g_jarPolicy;
+    }
 
     static Set<String> g_known_classes = new HashSet<>();
     static Set<File> g_known_jars = new HashSet<>();
@@ -171,8 +213,127 @@ public class Loader {
         return null;
     }
 
+    private static Path getApprovalsFilePath() {
+        // Store outside the Zomboid user tree: everything under ${user.home}/Zomboid
+        // is writable from Lua (cache, saves, mods), so a malicious Java mod could
+        // pre-approve its own hash from Lua before we ever check it.
+        return Path.of(System.getProperty("user.home"), ".zombie_buddy", APPROVALS_FILE_NAME);
+    }
+
+    private static Properties loadJarApprovals() {
+        Properties props = new Properties();
+        try {
+            Path p = getApprovalsFilePath();
+            if (!Files.exists(p)) return props;
+            try (FileInputStream fis = new FileInputStream(p.toFile())) {
+                props.load(fis);
+            }
+        } catch (Exception e) {
+            Logger.error("Could not load Java mod approvals: " + e);
+        }
+        return props;
+    }
+
+    private static void saveJarApprovals(Properties props) {
+        try {
+            Path p = getApprovalsFilePath();
+            if (p.getParent() != null) Files.createDirectories(p.getParent());
+            try (FileOutputStream fos = new FileOutputStream(p.toFile())) {
+                props.store(fos, "ZombieBuddy Java mod approvals (modId -> sha256)");
+            }
+        } catch (Exception e) {
+            Logger.error("Could not save Java mod approvals: " + e);
+        }
+    }
+
+    private static String sha256Hex(File file) {
+        if (file == null || !file.exists() || !file.isFile()) return null;
+        try (FileInputStream in = new FileInputStream(file)) {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] buf = new byte[8192];
+            int read;
+            while ((read = in.read(buf)) > 0) {
+                md.update(buf, 0, read);
+            }
+            byte[] hash = md.digest();
+            StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (byte b : hash) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            Logger.error("Could not hash file " + file + ": " + e);
+            return null;
+        }
+    }
+
+    /**
+     * Uses LWJGL's bundled TinyFD instead of AWT/Swing: PZ launches with
+     * {@code -Djava.awt.headless=true}, so Swing throws {@link java.awt.HeadlessException}
+     * even after resetting the cached headless flag. TinyFD is a native dialog
+     * already linked into the game and works on headed PZ clients on all three
+     * OSes. On a real dedicated server there's no display, TinyFD returns false
+     * / throws, and we fall through to denying the mod.
+     */
+    private static boolean askUserApproveJar(String modId, File jarFile, String sha256) {
+        Class<?> dialogClass = Accessor.findClass("org.lwjgl.util.tinyfd.TinyFileDialogs");
+        if (dialogClass == null) {
+            if (Core.getInstance().getGameVersion().isGreaterThan(GameVersion.parse("42.14"))) {
+                Logger.error("askUserApproveJar(): game version is > 42.14, but TinyFileDialogs not found! returning false");
+                return false;
+            }
+            Logger.info("askUserApproveJar(): game version is < 42.15 and TinyFileDialogs not found. returning true");
+            return true;
+        }
+
+        String msg = "Allow Java mod to load?\n\n"
+            + "Mod: " + modId + "\n\n"
+            + "JAR: " + jarFile + "\n\n"
+            + "SHA-256: " + sha256 + "\n\n"
+            + "Only allow if you trust this mod source.";
+
+        try {
+            Object result = Accessor.callByName(
+                dialogClass,
+                "tinyfd_messageBox",
+                "ZombieBuddy Java mod approval",
+                msg,
+                "yesno",
+                "warning",
+                false   // default: No
+            );
+            return Boolean.TRUE.equals(result);
+        } catch (Throwable t) {
+            Logger.error("Could not show Java mod approval dialog: " + t);
+            return false;
+        }
+    }
+
+    private static boolean isJarAllowedByPolicy(String modId, JavaModInfo jModInfo, Properties approvals) {
+        File jarFile = jModInfo != null ? jModInfo.getJarFileAsFile() : null;
+        String hash = sha256Hex(jarFile);
+        if (hash == null) return false;
+
+        String policy = g_jarPolicy;
+
+        String key = modId != null && !modId.isEmpty() ? modId : jModInfo.javaPkgName();
+        String known = approvals.getProperty(key);
+        boolean knownSame = hash.equalsIgnoreCase(known);
+
+        if (knownSame || POLICY_ALLOW_ALL.equals(policy)) {
+            approvals.setProperty(key, hash);
+            return true;
+        }
+        if (POLICY_DENY_NEW.equals(policy)) {
+            Logger.warn("Blocking Java mod by policy=deny-new: " + key + " (" + jarFile + ")");
+            return false;
+        }
+        boolean approved = askUserApproveJar(key, jarFile, hash);
+        if (approved) approvals.setProperty(key, hash);
+        return approved;
+    }
+
     public static void loadMods(ArrayList<String> mods) {
         ArrayList<JavaModInfo> jModInfos = new ArrayList<>();
+        ArrayList<String> jModIds = new ArrayList<>();
 
         for (String mod_id : mods) {
             var mod = ChooseGameInfo.getAvailableModDetails(mod_id);
@@ -187,16 +348,23 @@ public class Loader {
 
                 if (jModInfoCommon != null) {
                     jModInfos.add(jModInfoCommon);
+                    jModIds.add(mod_id);
                     if (jModInfoVersion == null) {
                         // when mod.info is in common dir, but JAR is in version dir
                         jModInfoVersion = JavaModInfo.parseMerged(mod.getCommonDir(), mod.getVersionDir());
                     }
                 }
-                if (jModInfoVersion != null) jModInfos.add(jModInfoVersion);
+                if (jModInfoVersion != null) {
+                    jModInfos.add(jModInfoVersion);
+                    jModIds.add(mod_id);
+                }
             } else {
                 // B41
                 JavaModInfo jModInfo = JavaModInfo.parse(mod.getDir());
-                if (jModInfo != null) jModInfos.add(jModInfo);
+                if (jModInfo != null) {
+                    jModInfos.add(jModInfo);
+                    jModIds.add(mod_id);
+                }
             }
         }
 
@@ -213,22 +381,49 @@ public class Loader {
         // Process the list to determine which mods should be skipped
         String myPackageName = Loader.class.getPackage().getName();
         ArrayList<Boolean> shouldSkipList = new ArrayList<>();
+        ArrayList<String> skipReasons = new ArrayList<>();
+        Properties approvals = loadJarApprovals();
+        boolean approvalsChanged = false;
         for (int i = 0; i < jModInfos.size(); i++) {
             JavaModInfo jModInfo = jModInfos.get(i);
+            String modId = i < jModIds.size() ? jModIds.get(i) : jModInfo.javaPkgName();
             boolean shouldSkip = false;
+            String skipReason = "";
             
             // Skip ZombieBuddy itself - it's loaded as a Java agent, not through normal mod loading
             if (jModInfo.javaPkgName().equals(myPackageName)) {
                 shouldSkip = true;
+                skipReason = " (loaded as Java agent, skipping normal mod loading)"
+                    + SelfUpdater.getExclusionReasonSuffix(jModInfo.getJarFileAsFile());
             }
             
             // Check if this mod's package name appears in a later mod
             Integer lastIndex = lastPkgNameIndex.get(jModInfo.javaPkgName());
             if (lastIndex != null && lastIndex > i) {
                 shouldSkip = true;
+                skipReason = " (package " + jModInfo.javaPkgName() + " is overridden by later mod)";
+            }
+
+            // Enforce Java JAR policy for new/changed binaries.
+            if (!shouldSkip) {
+                String approvalKey = modId != null && !modId.isEmpty() ? modId : jModInfo.javaPkgName();
+                String prevApproval = approvals.getProperty(approvalKey);
+                if (!isJarAllowedByPolicy(modId, jModInfo, approvals)) {
+                    shouldSkip = true;
+                    skipReason = " (blocked by policy=" + g_jarPolicy + ", modId=" + modId + ")";
+                }
+                String nowApproval = approvals.getProperty(approvalKey);
+                if ((prevApproval == null && nowApproval != null) || (prevApproval != null && !prevApproval.equals(nowApproval))) {
+                    approvalsChanged = true;
+                }
             }
             
             shouldSkipList.add(shouldSkip);
+            skipReasons.add(skipReason);
+        }
+
+        if (approvalsChanged) {
+            saveJarApprovals(approvals);
         }
         
         if (!shouldSkipList.isEmpty()) {
@@ -236,19 +431,7 @@ public class Loader {
             for (int i = 0; i < jModInfos.size(); i++) {
                 if (shouldSkipList.get(i)) {
                     JavaModInfo jModInfo = jModInfos.get(i);
-                    String reason = "";
-                    
-                    // Skip ZombieBuddy itself - it's loaded as a Java agent
-                    if (jModInfo.javaPkgName().equals(myPackageName)) {
-                        reason = " (loaded as Java agent, skipping normal mod loading)"
-                            + SelfUpdater.getExclusionReasonSuffix(jModInfo.getJarFileAsFile());
-                    } else {
-                        Integer lastIndex = lastPkgNameIndex.get(jModInfo.javaPkgName());
-                        if (lastIndex != null && lastIndex > i) {
-                            reason = " (package " + jModInfo.javaPkgName() + " is overridden by later mod)";
-                        }
-                    }
-                    
+                    String reason = i < skipReasons.size() ? skipReasons.get(i) : "";
                     Logger.info("Excluded: " + jModInfo.modDirectory().getAbsolutePath() + reason);
                 }
             }
