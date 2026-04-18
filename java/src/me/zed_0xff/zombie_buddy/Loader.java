@@ -339,7 +339,7 @@ public class Loader {
         );
         if (allow == null) return Approval.DENY_SESSION; // dialog failed — fail closed, but don't persist
 
-        String verb = allow ? "approval" : "denial";
+        String verb = allow ? "APPROVAL" : "DENIAL";
         String yesHint = allow
             ? "Yes — save to ~/.zombie_buddy/" + APPROVALS_FILE_NAME + " and do not ask again."
             : "Yes — save as denied; this JAR will be blocked without asking.";
