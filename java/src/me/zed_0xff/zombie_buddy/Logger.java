@@ -36,7 +36,7 @@ public class Logger {
     }
 
     public static void warn(String message) {
-        message = PREFIX + message;
+        message = PREFIX + "[?] " + message;
         try {
             System.err.println(message);
         } catch (Exception e) { // see above
@@ -45,7 +45,7 @@ public class Logger {
     }
 
     public static void error(String message) {
-        message = PREFIX + message;
+        message = PREFIX + "[!] " + message;
         try {
             System.err.println(message);
         } catch (Exception e) { // see above
