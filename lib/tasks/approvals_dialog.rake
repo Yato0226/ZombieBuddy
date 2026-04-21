@@ -66,7 +66,7 @@ namespace :zb do
         prior_hint: "",
         mod_display_name: "Signed OK",
         zbs_valid: "yes",
-        zbs_steam_id: "zed_0xff",
+        zbs_steam_id: "76561198000000001",
         zbs_notice: "",
         steam_ban_status: "no",
         steam_ban_reason: ""
@@ -95,7 +95,7 @@ namespace :zb do
         prior_hint: "",
         mod_display_name: "Banned on Workshop",
         zbs_valid: "yes",
-        zbs_steam_id: "banned_author",
+        zbs_steam_id: "76561198000001000",
         zbs_notice: "",
         steam_ban_status: "yes",
         steam_ban_reason: "Steam moderation flag."
@@ -109,7 +109,7 @@ namespace :zb do
         prior_hint: "",
         mod_display_name: "Ban status unknown",
         zbs_valid: "yes",
-        zbs_steam_id: "unknown_author",
+        zbs_steam_id: "76561198000001001",
         zbs_notice: "",
         steam_ban_status: "unknown",
         steam_ban_reason: "Steam API request failed (HTTP 503)."

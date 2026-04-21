@@ -21,17 +21,15 @@ import java.util.regex.Pattern;
 
 /**
  * Verifies {@code .jar.zbs} sidecars signed with Ed25519 (see ZModUnbork Gradle {@code signJarZBS}).
- * The sidecar has three lines ({@code signature} is 128 hex chars); the Ed25519 public key (64 hex) is read from the author's Steam profile
- * page as {@code JavaModZBS:...} (same text authors add to their profile summary).
+ * The sidecar has three lines ({@code signature} is 128 hex chars); {@code SteamID64} must be SteamID64 (17-digit account id).
+ * The Ed25519 public key (64 hex) is read from the author's Steam profile page as {@code JavaModZBS:...} (profile summary).
  */
 public final class ZBSVerifier {
 
-    private static final Pattern STEAM_ID = Pattern.compile("^[a-zA-Z0-9_]{3,}$");
-    /** SteamID64 profile URLs use {@code /profiles/}; vanity ids use {@code /id/}. */
-    private static final Pattern NUMERIC_STEAM_PROFILE_ID = Pattern.compile("^[0-9]{17,}$");
-    private static final Pattern LINE_STEAM_ID = Pattern.compile("^steam_id:([a-zA-Z0-9_]{3,})$");
-    /** Ed25519 signature: 64 bytes as 128 hex characters. */
-    private static final Pattern LINE_SIGNATURE = Pattern.compile("^signature:([0-9a-fA-F]{128})$");
+    /** SteamID64: 17-digit decimal account id (Workshop {@code creator} uses the same form). */
+    private static final Pattern LINE_STEAM_ID = Pattern.compile("^SteamID64:(\\d{17})$");
+    /** Ed25519 Signature: 64 bytes as 128 hex characters. */
+    private static final Pattern LINE_SIGNATURE = Pattern.compile("^Signature:([0-9a-fA-F]{128})$");
     /** Pubkey may appear anywhere in the profile HTML (summary, etc.). */
     private static final Pattern JAVA_MOD_ZBS_IN_HTML = Pattern.compile("JavaModZBS:([0-9a-fA-F]{64})");
 
@@ -46,46 +44,59 @@ public final class ZBSVerifier {
      * @param jarSha256Hex lowercase hex SHA-256 of the JAR (same as Loader uses)
      */
     public static Result verify(File jarFile, File zbsFile, String jarSha256Hex) {
+        return verify(jarFile, zbsFile, jarSha256Hex, null);
+    }
+
+    /**
+     * @param workshopUploaderSteamId64 Workshop item {@code creator} (SteamID64) when the mod is installed from the Workshop content path;
+     *        {@code null} to skip uploader binding (e.g. no workshop id in path); empty string if the API did not return a creator (treated as failure).
+     */
+    public static Result verify(File jarFile, File zbsFile, String jarSha256Hex, String workshopUploaderSteamId64) {
         if (zbsFile == null || !zbsFile.isFile()) {
             return new Result(false, "", "Missing .zbs file next to JAR: " + (zbsFile != null ? zbsFile.getName() : ""));
         }
-        String steamId;
+        String steamId64;
         byte[] sig;
         try {
             ParsedZBS p = parseZBS(zbsFile);
-            steamId = p.steamId;
+            steamId64 = p.steamId64;
             sig = p.signature;
         } catch (IOException e) {
             return new Result(false, "", "Could not read .zbs: " + e.getMessage());
         }
-        if (!STEAM_ID.matcher(steamId).matches()) {
-            return new Result(false, steamId, "Invalid steam_id in .zbs file.");
+        if (workshopUploaderSteamId64 != null) {
+            if (workshopUploaderSteamId64.isEmpty()) {
+                return new Result(false, steamId64, "Workshop uploader could not be verified (Steam API did not return creator).");
+            }
+            if (!workshopUploaderSteamId64.equals(steamId64)) {
+                return new Result(false, steamId64, "Declared SteamID64 does not match Workshop item uploader.");
+            }
         }
         List<String> pubHexes;
         try {
-            pubHexes = fetchJavaModZBSHexesFromSteam(steamId);
+            pubHexes = fetchJavaModZBSHexesFromSteam(steamId64);
         } catch (Exception e) {
-            return new Result(false, steamId, e.getMessage());
+            return new Result(false, steamId64, e.getMessage());
         }
         if (pubHexes.isEmpty()) {
             return new Result(
                 false,
-                steamId,
+                steamId64,
                 "Could not find JavaModZBS:<64 hex> on Steam profile — add it to your profile summary."
             );
         }
         try {
-            String canonical = "ZBS:" + steamId + ":" + jarSha256Hex.toLowerCase(Locale.ROOT);
+            String canonical = "ZBS:" + steamId64 + ":" + jarSha256Hex.toLowerCase(Locale.ROOT);
             byte[] msg = canonical.getBytes(StandardCharsets.UTF_8);
             for (String pubHex : pubHexes) {
                 byte[] pubRaw;
                 try {
                     pubRaw = hexToBytes(pubHex);
                 } catch (Exception e) {
-                    return new Result(false, steamId, "Invalid JavaModZBS hex on Steam profile.");
+                    return new Result(false, steamId64, "Invalid JavaModZBS hex on Steam profile.");
                 }
                 if (pubRaw.length != 32) {
-                    return new Result(false, steamId, "JavaModZBS on Steam profile must be 64 hex chars (32-byte Ed25519 public key).");
+                    return new Result(false, steamId64, "JavaModZBS on Steam profile must be 64 hex chars (32-byte Ed25519 public key).");
                 }
                 Ed25519PublicKeyParameters pub = new Ed25519PublicKeyParameters(pubRaw, 0);
                 Ed25519Signer signer = new Ed25519Signer();
@@ -93,28 +104,25 @@ public final class ZBSVerifier {
                 signer.update(msg, 0, msg.length);
                 boolean ok = signer.verifySignature(sig);
                 if (ok) {
-                    return new Result(true, steamId, "");
+                    return new Result(true, steamId64, "");
                 }
             }
-            return new Result(false, steamId, "Invalid signature — JAR may have been tampered with.");
+            return new Result(false, steamId64, "Invalid signature — JAR may have been tampered with.");
         } catch (Exception e) {
-            return new Result(false, steamId, e.getMessage());
+            return new Result(false, steamId64, e.getMessage());
         }
     }
 
-    /** Steam Community profile URL for {@code steam_id} from {@code .zbs} (vanity or numeric). */
-    public static String steamCommunityProfileUrl(String steamId) {
-        if (steamId == null || steamId.isEmpty()) {
+    /** Steam Community profile URL for SteamID64 from {@code .zbs}. */
+    public static String steamCommunityProfileUrl(String steamId64) {
+        if (steamId64 == null || steamId64.isEmpty()) {
             return "https://steamcommunity.com/";
         }
-        if (NUMERIC_STEAM_PROFILE_ID.matcher(steamId).matches()) {
-            return "https://steamcommunity.com/profiles/" + steamId + "/";
-        }
-        return "https://steamcommunity.com/id/" + steamId + "/";
+        return "https://steamcommunity.com/profiles/" + steamId64 + "/";
     }
 
-    private static List<String> fetchJavaModZBSHexesFromSteam(String steamId) throws IOException {
-        String url = steamCommunityProfileUrl(steamId);
+    private static List<String> fetchJavaModZBSHexesFromSteam(String steamId64) throws IOException {
+        String url = steamCommunityProfileUrl(steamId64);
         HttpRequest req = HttpRequest.newBuilder()
             .uri(URI.create(url))
             .timeout(Duration.ofSeconds(25))
@@ -146,11 +154,11 @@ public final class ZBSVerifier {
     }
 
     private static final class ParsedZBS {
-        final String steamId;
+        final String steamId64;
         final byte[] signature;
 
-        ParsedZBS(String steamId, byte[] signature) {
-            this.steamId = steamId;
+        ParsedZBS(String steamId64, byte[] signature) {
+            this.steamId64 = steamId64;
             this.signature = signature;
         }
     }
@@ -161,7 +169,7 @@ public final class ZBSVerifier {
             String l2 = r.readLine();
             String l3 = r.readLine();
             if (l1 == null || l2 == null || l3 == null) {
-                throw new IOException("Expected at least 3 lines (ZBS, steam_id, signature)");
+                throw new IOException("Expected at least 3 lines (ZBS, SteamID64, Signature)");
             }
             l1 = l1.trim();
             l2 = l2.trim();
@@ -171,20 +179,20 @@ public final class ZBSVerifier {
             }
             Matcher m2 = LINE_STEAM_ID.matcher(l2);
             if (!m2.matches()) {
-                throw new IOException("Second line must be steam_id:<id>");
+                throw new IOException("Second line must be SteamID64:<17 dec>");
             }
             Matcher m3 = LINE_SIGNATURE.matcher(l3);
             if (!m3.matches()) {
-                throw new IOException("Third line must be signature:<128 hex> (Ed25519)");
+                throw new IOException("Third line must be Signature:<128 hex>");
             }
-            String steamId = m2.group(1);
+            String steamId64 = m2.group(1);
             byte[] sig;
             try {
                 sig = hexToBytes(m3.group(1));
             } catch (IllegalArgumentException e) {
                 throw new IOException("Invalid signature hex: " + e.getMessage());
             }
-            return new ParsedZBS(steamId, sig);
+            return new ParsedZBS(steamId64, sig);
         }
     }
 
@@ -208,7 +216,7 @@ public final class ZBSVerifier {
 
     public static final class Result {
         public final boolean valid;
-        /** Steam custom URL id from .zbs (for profile link); may be set when invalid for display. */
+        /** SteamID64 from .zbs (for display); may be set when invalid for display. */
         public final String steamIdFromZBS;
         public final String invalidReason;
 

@@ -74,7 +74,7 @@ public final class JarBatchApprovalProtocol {
         }
     }
 
-    /** One row in the batch response file: mod id, JAR hash, UI token, optional trusted author steam_id. */
+    /** One row in the batch response file: mod id, JAR hash, UI token, optional trusted author SteamID64. */
     public static final class OutLine {
         public final String modId;
         public final String sha256;
