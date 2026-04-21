@@ -72,17 +72,6 @@ public class Agent {
             }
         }
 
-        String envBatchTimeout = System.getenv("ZB_BATCH_APPROVAL_TIMEOUT");
-        if (envBatchTimeout != null && !envBatchTimeout.isEmpty()) {
-            try {
-                Loader.g_batchApprovalTimeoutSeconds = Math.max(0, Integer.parseInt(envBatchTimeout.trim()));
-                Logger.info("set batch_approval_timeout to " + Loader.g_batchApprovalTimeoutSeconds
-                    + "s from ZB_BATCH_APPROVAL_TIMEOUT (0 = no timeout)");
-            } catch (NumberFormatException e) {
-                Logger.error("invalid ZB_BATCH_APPROVAL_TIMEOUT value: " + envBatchTimeout);
-            }
-        }
-
         Loader.ApplyPatchesFromPackage(ZombieBuddy.class.getPackage().getName() + ".patches", null, true);
 
         // Load experimental patches if enabled
@@ -180,23 +169,6 @@ public class Agent {
         PatchesJarEntry(String jarPath, String packageName) {
             this.jarPath = jarPath;
             this.packageName = packageName;
-        }
-    }
-
-    public static void dumpEnv() {
-        Logger.info("environment variables:");
-        // find the longest key and pad all keys to that length
-        int maxKeyLength = 0;
-        for (var entry : System.getenv().entrySet()) {
-            if (entry.getKey().length() > maxKeyLength) {
-                maxKeyLength = entry.getKey().length();
-            }
-        }
-        String keyFormat = "%-" + maxKeyLength + "s";
-        String valueFormat = "%s";
-
-        for (var entry : System.getenv().entrySet()) {
-            Logger.info("    " + String.format(keyFormat, entry.getKey()) + " = " + String.format(valueFormat, entry.getValue()));
         }
     }
 }

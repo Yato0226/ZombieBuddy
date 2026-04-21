@@ -8,9 +8,6 @@ public class Patch_DebugLog {
         @Patch.OnExit
         public static void exit() {
             Logger.debug("after DebugLog.init");
-            if (Agent.arguments.containsKey("dump_env")) {
-                Agent.dumpEnv();
-            }
         }
     }
 }

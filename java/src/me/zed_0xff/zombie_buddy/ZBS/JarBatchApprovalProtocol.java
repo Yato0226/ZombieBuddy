@@ -40,6 +40,10 @@ public final class JarBatchApprovalProtocol {
         public final String zbsSteamId;
         /** Non-empty when {@link #zbsValid} is {@code no}. */
         public final String zbsNotice;
+        /** {@code yes} / {@code no} / {@code unknown}. */
+        public final String steamBanStatus;
+        /** Optional explanation (e.g. API error or Steam ban reason). */
+        public final String steamBanReason;
 
         public Entry(
             String modKey,
@@ -51,7 +55,9 @@ public final class JarBatchApprovalProtocol {
             String modDisplayName,
             String zbsValid,
             String zbsSteamId,
-            String zbsNotice
+            String zbsNotice,
+            String steamBanStatus,
+            String steamBanReason
         ) {
             this.modKey = modKey;
             this.modId = modId;
@@ -63,6 +69,8 @@ public final class JarBatchApprovalProtocol {
             this.zbsValid = zbsValid != null ? zbsValid : "";
             this.zbsSteamId = zbsSteamId != null ? zbsSteamId : "";
             this.zbsNotice = zbsNotice != null ? zbsNotice : "";
+            this.steamBanStatus = steamBanStatus != null ? steamBanStatus : "";
+            this.steamBanReason = steamBanReason != null ? steamBanReason : "";
         }
     }
 
@@ -114,6 +122,10 @@ public final class JarBatchApprovalProtocol {
                 w.newLine();
                 w.write(escape(e.zbsNotice));
                 w.newLine();
+                w.write(escape(e.steamBanStatus));
+                w.newLine();
+                w.write(escape(e.steamBanReason));
+                w.newLine();
             }
         }
     }
@@ -143,12 +155,16 @@ public final class JarBatchApprovalProtocol {
                 String zbsValid = "";
                 String zbsSteamId = "";
                 String zbsNotice = "";
+                String steamBanStatus = "";
+                String steamBanReason = "";
                 modDisplayName = unescape(readMandatory(r, "modDisplayName"));
                 zbsValid = unescape(readMandatory(r, "zbsValid"));
                 zbsSteamId = unescape(readMandatory(r, "zbsSteamId"));
                 zbsNotice = unescape(readMandatory(r, "zbsNotice"));
+                steamBanStatus = unescape(readMandatory(r, "steamBanStatus"));
+                steamBanReason = unescape(readMandatory(r, "steamBanReason"));
                 out.add(new Entry(modKey, modId, jarPath, sha, modHuman, priorHint, modDisplayName,
-                    zbsValid, zbsSteamId, zbsNotice));
+                    zbsValid, zbsSteamId, zbsNotice, steamBanStatus, steamBanReason));
             }
             return out;
         }

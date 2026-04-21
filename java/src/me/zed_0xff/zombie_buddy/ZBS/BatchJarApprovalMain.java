@@ -12,6 +12,7 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
@@ -48,6 +49,7 @@ public final class BatchJarApprovalMain {
 
     private static final Color ZBS_ROW_OK = new Color(220, 255, 220);
     private static final Color ZBS_ROW_BAD = new Color(255, 210, 210);
+    private static final Color STATUS_UNKNOWN_BG = new Color(255, 244, 176);
 
     private BatchJarApprovalMain() {}
 
@@ -115,32 +117,42 @@ public final class BatchJarApprovalMain {
         JLabel hName = new JLabel("Mod name");
         JLabel hAuthor = new JLabel("Author");
         JLabel hUpdated = new JLabel("Updated");
-        JLabel hTrust = new JLabel("Trust author");
+        JLabel hSteamBan = new JLabel("<html><center>Steam<br/>ban status</center></html>");
+        JLabel hTrust = new JLabel("<html><center>Trust<br/>author</center></html>");
         JLabel hAllow = new JLabel("Allow");
+        hUpdated.setHorizontalAlignment(SwingConstants.CENTER);
+        hSteamBan.setHorizontalAlignment(SwingConstants.CENTER);
+        hAllow.setHorizontalAlignment(SwingConstants.CENTER);
+        hTrust.setHorizontalAlignment(SwingConstants.CENTER);
         if (bold != null) {
             hName.setFont(bold);
             hAuthor.setFont(bold);
             hUpdated.setFont(bold);
+            hSteamBan.setFont(bold);
             hTrust.setFont(bold);
             hAllow.setFont(bold);
         }
         c.gridx = 0;
-        c.weightx = 0.26;
+        c.weightx = 0.24;
         c.fill = GridBagConstraints.HORIZONTAL;
         grid.add(hName, c);
         c.gridx = 1;
-        c.weightx = 0.30;
+        c.weightx = 0.27;
         grid.add(hAuthor, c);
         c.gridx = 2;
         c.weightx = 0.14;
         grid.add(hUpdated, c);
         c.gridx = 3;
-        c.weightx = 0.12;
-        grid.add(hTrust, c);
+        c.weightx = 0.14;
+        grid.add(hSteamBan, c);
         c.gridx = 4;
-        c.weightx = 0.0;
-        c.fill = GridBagConstraints.NONE;
+        c.weightx = 0.09;
+        c.fill = GridBagConstraints.HORIZONTAL;
         grid.add(hAllow, c);
+        c.gridx = 5;
+        c.weightx = 0.12;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        grid.add(hTrust, c);
 
         @SuppressWarnings("unchecked")
         final JRadioButton[] allowYes = new JRadioButton[entries.size()];
@@ -156,7 +168,9 @@ public final class BatchJarApprovalMain {
             boolean zbsYes = "yes".equals(e.zbsValid);
             boolean zbsNo = "no".equals(e.zbsValid);
             boolean zbsUnsigned = "unsigned".equals(e.zbsValid);
-            Color rowBg = zbsYes ? ZBS_ROW_OK : (zbsNo ? ZBS_ROW_BAD : null);
+            boolean steamBanYes = "yes".equals(e.steamBanStatus);
+            boolean steamBanUnknown = "unknown".equals(e.steamBanStatus);
+            Color rowBg = steamBanYes ? ZBS_ROW_BAD : (zbsYes ? ZBS_ROW_OK : (zbsNo ? ZBS_ROW_BAD : null));
 
             c.gridy = i + 1;
             c.gridx = 0;
@@ -238,21 +252,26 @@ public final class BatchJarApprovalMain {
             grid.add(dateLab, c);
 
             c.gridx = 3;
-            c.weightx = 0.12;
-            JCheckBox trustCb = new JCheckBox("", false);
-            trustCb.setEnabled(zbsYes);
-            trustCb.setOpaque(rowBg != null);
-            if (rowBg != null) {
-                trustCb.setBackground(rowBg);
+            c.weightx = 0.14;
+            JLabel banStatusLab = new JLabel(steamBanYes ? "Yes" : (steamBanUnknown ? "Unknown" : "No"));
+            if (steamBanYes) {
+                banStatusLab.setForeground(new Color(176, 0, 0));
+            } else if (steamBanUnknown) {
+                banStatusLab.setOpaque(true);
+                banStatusLab.setBackground(STATUS_UNKNOWN_BG);
+            } else if (rowBg != null) {
+                banStatusLab.setOpaque(true);
+                banStatusLab.setBackground(rowBg);
             }
-            trustChecks[i] = trustCb;
-            authorGroupKey[i] = e.zbsSteamId != null ? e.zbsSteamId : "";
-            grid.add(trustCb, c);
+            if (e.steamBanReason != null && !e.steamBanReason.isEmpty()) {
+                banStatusLab.setToolTipText(escapeHtml(e.steamBanReason));
+            }
+            grid.add(banStatusLab, c);
 
             boolean defaultYes = Loader.DECISION_YES.equals(e.priorHint);
             JRadioButton yesB = new JRadioButton("Yes", defaultYes);
             JRadioButton noB = new JRadioButton("No", !defaultYes);
-            if (zbsNo) {
+            if (zbsNo || steamBanYes) {
                 yesB.setEnabled(false);
                 noB.setEnabled(false);
                 noB.setSelected(true);
@@ -275,6 +294,19 @@ public final class BatchJarApprovalMain {
             c.weightx = 0.0;
             c.fill = GridBagConstraints.NONE;
             grid.add(radios, c);
+
+            c.gridx = 5;
+            c.weightx = 0.12;
+            c.fill = GridBagConstraints.HORIZONTAL;
+            JCheckBox trustCb = new JCheckBox("", false);
+            trustCb.setEnabled(zbsYes && !steamBanYes);
+            trustCb.setOpaque(rowBg != null);
+            if (rowBg != null) {
+                trustCb.setBackground(rowBg);
+            }
+            trustChecks[i] = trustCb;
+            authorGroupKey[i] = e.zbsSteamId != null ? e.zbsSteamId : "";
+            grid.add(trustCb, c);
             i++;
         }
         Map<String, List<Integer>> authorGroups = new HashMap<>();
@@ -297,7 +329,7 @@ public final class BatchJarApprovalMain {
             "Save decisions to disk (persist across game launches)", true);
         savePersist.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel trustNotice = new JLabel(
-            "<html><small><i>\"Trust author\" means all mods by that author are auto-allowed while their digital signature remains valid.</i></small></html>");
+            "<html><small><i>\"Trust author\" means all mods by that author are auto-allowed while their digital signature remains valid and the mod is not banned.</i></small></html>");
         trustNotice.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -375,7 +407,7 @@ public final class BatchJarApprovalMain {
                 for (int k = 0; k < entries.size(); k++) {
                     JarBatchApprovalProtocol.Entry e = entries.get(k);
                     String tok;
-                    if ("no".equals(e.zbsValid)) {
+                    if ("no".equals(e.zbsValid) || "yes".equals(e.steamBanStatus)) {
                         // Always deny loading; same session/persist split as other "No" rows.
                         tok = persist
                             ? JarBatchApprovalProtocol.TOK_DENY_PERSIST

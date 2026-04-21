@@ -39,6 +39,8 @@ def zb_sample_batch_request_v5(entries)
     lines << e[:zbs_valid].to_s
     lines << e[:zbs_steam_id].to_s
     lines << e[:zbs_notice].to_s
+    lines << e[:steam_ban_status].to_s
+    lines << e[:steam_ban_reason].to_s
   end
   lines.join("\n") + "\n"
 end
@@ -65,7 +67,9 @@ namespace :zb do
         mod_display_name: "Signed OK",
         zbs_valid: "yes",
         zbs_steam_id: "zed_0xff",
-        zbs_notice: ""
+        zbs_notice: "",
+        steam_ban_status: "no",
+        steam_ban_reason: ""
       }
     end + [
       {
@@ -78,7 +82,37 @@ namespace :zb do
         mod_display_name: "Tampered",
         zbs_valid: "no",
         zbs_steam_id: "",
-        zbs_notice: "Invalid signature — JAR may have been tampered with."
+        zbs_notice: "Invalid signature — JAR may have been tampered with.",
+        steam_ban_status: "no",
+        steam_ban_reason: ""
+      },
+      {
+        mod_key: "DemoModBanned",
+        mod_id: "DemoModBanned",
+        jar_path: "/tmp/DemoModBanned/media/java/client/DemoModBanned.jar",
+        sha256: "d" * 64,
+        modified: "2025-01-03",
+        prior_hint: "",
+        mod_display_name: "Banned on Workshop",
+        zbs_valid: "yes",
+        zbs_steam_id: "banned_author",
+        zbs_notice: "",
+        steam_ban_status: "yes",
+        steam_ban_reason: "Steam moderation flag."
+      },
+      {
+        mod_key: "DemoModUnknownBan",
+        mod_id: "DemoModUnknownBan",
+        jar_path: "/tmp/DemoModUnknownBan/media/java/client/DemoModUnknownBan.jar",
+        sha256: "e" * 64,
+        modified: "2025-01-04",
+        prior_hint: "",
+        mod_display_name: "Ban status unknown",
+        zbs_valid: "yes",
+        zbs_steam_id: "unknown_author",
+        zbs_notice: "",
+        steam_ban_status: "unknown",
+        steam_ban_reason: "Steam API request failed (HTTP 503)."
       },
       {
         mod_key: "DemoModLegacy",
@@ -90,7 +124,9 @@ namespace :zb do
         mod_display_name: "No ZBS fields",
         zbs_valid: "",
         zbs_steam_id: "",
-        zbs_notice: ""
+        zbs_notice: "",
+        steam_ban_status: "unknown",
+        steam_ban_reason: "No workshop id found in path."
       }
     ]
 

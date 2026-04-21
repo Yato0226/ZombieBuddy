@@ -6,10 +6,16 @@ import java.io.InputStream;
 import java.lang.ClassLoader;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -19,7 +25,10 @@ import java.util.jar.Manifest;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import io.github.classgraph.*;
+import mjson.Json;
 
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
@@ -28,6 +37,7 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.matcher.ElementMatchers;
 
 import zombie.GameWindow;
+import zombie.core.znet.SteamUtils;
 import zombie.gameStates.ChooseGameInfo;
 
 public class Loader {
@@ -52,6 +62,17 @@ public class Loader {
     private static final String POLICY_DENY_NEW     = "deny-new";
     private static final String POLICY_ALLOW_ALL    = "allow-all";
     private static final Set<String> VALID_POLICIES = Set.of(POLICY_PROMPT, POLICY_DENY_NEW, POLICY_ALLOW_ALL);
+    private static final String STEAM_APP_ID_PZ = "108600";
+    private static final Pattern WORKSHOP_MOD_ID_IN_PATH = Pattern.compile("/content/" + STEAM_APP_ID_PZ + "/([0-9]+)/");
+    private static final String STEAM_BAN_STATUS_YES = "yes";
+    private static final String STEAM_BAN_STATUS_NO = "no";
+    private static final String STEAM_BAN_STATUS_UNKNOWN = "unknown";
+    private static final String STEAM_GET_PUBLISHED_FILE_DETAILS_URL =
+        "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
+    private static final HttpClient STEAM_API_HTTP = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .build();
+    private static final int STEAM_PUBLISHED_DETAILS_BATCH_SIZE = 100;
 
     // Write-once policy: must be set during Agent.premain, before any other Java
     // mod is on the classpath. Subsequent set attempts are logged and ignored,
@@ -83,7 +104,7 @@ public class Loader {
 
     /** ZBS verification applies for every policy except {@code allow-all}. */
     private static boolean zbsSignatureChecksEnabled() {
-        return !POLICY_ALLOW_ALL.equals(g_jarPolicy);
+        return SteamUtils.isSteamModeEnabled() && !POLICY_ALLOW_ALL.equals(g_jarPolicy);
     }
 
     static Set<String> g_known_classes = new HashSet<>();
@@ -334,6 +355,105 @@ public class Loader {
         return null;
     }
 
+    private static final class SteamBanInfo {
+        final String status;
+        final String reason;
+
+        SteamBanInfo(String status, String reason) {
+            this.status = status != null ? status : STEAM_BAN_STATUS_UNKNOWN;
+            this.reason = reason != null ? reason : "";
+        }
+    }
+
+    private static String extractWorkshopModId(File modDirectory) {
+        if (modDirectory == null) {
+            return "";
+        }
+        String p = modDirectory.getAbsolutePath().replace('\\', '/');
+        Matcher m = WORKSHOP_MOD_ID_IN_PATH.matcher(p + "/");
+        if (!m.find()) {
+            return "";
+        }
+        return m.group(1);
+    }
+
+    private static void setUnknownBanStatus(Map<String, SteamBanInfo> out, Set<String> workshopIds, String reason) {
+        for (String id : workshopIds) {
+            if (id == null || id.isEmpty()) continue;
+            out.put(id, new SteamBanInfo(STEAM_BAN_STATUS_UNKNOWN, reason));
+        }
+    }
+
+    private static Map<String, SteamBanInfo> checkWorkshopBanStatus(Set<String> workshopIds) {
+        Map<String, SteamBanInfo> out = new HashMap<>();
+        if (workshopIds == null || workshopIds.isEmpty()) {
+            return out;
+        }
+        Logger.info("checking mods ban status");
+        try {
+            List<String> ids = new ArrayList<>(workshopIds);
+            for (int from = 0; from < ids.size(); from += STEAM_PUBLISHED_DETAILS_BATCH_SIZE) {
+                int to = Math.min(ids.size(), from + STEAM_PUBLISHED_DETAILS_BATCH_SIZE);
+                List<String> chunk = ids.subList(from, to);
+                StringBuilder body = new StringBuilder();
+                body.append("itemcount=").append(chunk.size());
+                for (int i = 0; i < chunk.size(); i++) {
+                    body.append("&publishedfileids[").append(i).append("]=")
+                        .append(URLEncoder.encode(chunk.get(i), java.nio.charset.StandardCharsets.UTF_8));
+                }
+                HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(STEAM_GET_PUBLISHED_FILE_DETAILS_URL))
+                    .timeout(Duration.ofSeconds(25))
+                    .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                    .build();
+                HttpResponse<String> resp = STEAM_API_HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() != 200) {
+                    setUnknownBanStatus(out, new HashSet<>(chunk),
+                        "Steam API request failed (HTTP " + resp.statusCode() + ")");
+                    continue;
+                }
+                Json root = Json.read(resp.body());
+                Json response = root != null ? root.at("response") : null;
+                Json details = (response != null && response.isObject()) ? response.at("publishedfiledetails") : null;
+                if (details == null || !details.isArray()) {
+                    setUnknownBanStatus(out, new HashSet<>(chunk), "Steam API response missing publishedfiledetails");
+                    continue;
+                }
+                Set<String> seen = new HashSet<>();
+                for (Json it : details.asJsonList()) {
+                    if (it == null || !it.isObject()) continue;
+                    Json idJson = it.at("publishedfileid");
+                    if (idJson == null || !idJson.isString()) continue;
+                    String id = idJson.asString();
+                    seen.add(id);
+                    int banned = 0;
+                    Json bannedJson = it.at("banned");
+                    if (bannedJson != null && bannedJson.isNumber()) {
+                        banned = bannedJson.asInteger();
+                    }
+                    String reason = "";
+                    Json banReasonJson = it.at("ban_reason");
+                    if (banReasonJson != null && banReasonJson.isString()) {
+                        reason = banReasonJson.asString();
+                    }
+                    out.put(id, new SteamBanInfo(banned == 1 ? STEAM_BAN_STATUS_YES : STEAM_BAN_STATUS_NO, reason));
+                }
+                for (String id : chunk) {
+                    if (!seen.contains(id) && !out.containsKey(id)) {
+                        out.put(id, new SteamBanInfo(STEAM_BAN_STATUS_UNKNOWN, "Steam API response missing mod id"));
+                    }
+                }
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            setUnknownBanStatus(out, workshopIds, "Steam API request interrupted");
+        } catch (Exception e) {
+            setUnknownBanStatus(out, workshopIds, "Steam API request failed: " + e.getMessage());
+        }
+        return out;
+    }
+
     private static String sha256Hex(File file) {
         if (file == null || !file.exists() || !file.isFile()) return null;
         try (FileInputStream in = new FileInputStream(file)) {
@@ -514,6 +634,19 @@ public class Loader {
             }
             structuralOnlySkip.add(stSkip);
         }
+        boolean steamModeEnabled = SteamUtils.isSteamModeEnabled();
+        Set<String> workshopIdsToCheck = new HashSet<>();
+        if (steamModeEnabled) {
+            for (JavaModInfo jModInfo : jModInfos) {
+                String workshopModId = extractWorkshopModId(jModInfo.modDirectory());
+                if (!workshopModId.isEmpty()) {
+                    workshopIdsToCheck.add(workshopModId);
+                }
+            }
+        }
+        Map<String, SteamBanInfo> steamBanByWorkshopId = steamModeEnabled
+            ? checkWorkshopBanStatus(workshopIdsToCheck)
+            : new HashMap<>();
 
         if (POLICY_PROMPT.equals(g_jarPolicy)) {
             ArrayList<JarBatchApprovalProtocol.Entry> batchEntries = new ArrayList<>();
@@ -525,8 +658,6 @@ public class Loader {
                 String hash = sha256Hex(jarFile);
                 if (hash == null) continue;
                 String modKey = modId != null && !modId.isEmpty() ? modId : jModInfo.javaPkgName();
-                String decision = lookupJarDecision(approvals, modKey, hash);
-                if (DECISION_YES.equals(decision) || DECISION_NO.equals(decision)) continue;
                 String modified = (jarFile != null && jarFile.exists())
                     ? java.time.Instant.ofEpochMilli(jarFile.lastModified())
                         .atZone(java.time.ZoneId.systemDefault())
@@ -540,25 +671,51 @@ public class Loader {
                 String zbsValid;
                 String zbsSteamId;
                 String zbsNotice;
-                if (zbsFile == null || !zbsFile.isFile()) {
-                    if (g_allowUnsignedMods) {
-                        zbsValid = "unsigned";
-                        zbsSteamId = "";
-                        zbsNotice = "";
+                String steamBanStatus = STEAM_BAN_STATUS_NO;
+                String steamBanReason = "";
+                if (steamModeEnabled) {
+                    steamBanStatus = STEAM_BAN_STATUS_UNKNOWN;
+                    String workshopModId = extractWorkshopModId(jModInfo.modDirectory());
+                    if (workshopModId.isEmpty()) {
+                        steamBanReason = "Workshop id not found in mod path.";
                     } else {
-                        zbsValid = "no";
-                        zbsSteamId = "";
-                        zbsNotice = "Missing .zbs sidecar (allow_unsigned_mods=false)";
+                        SteamBanInfo banInfo = steamBanByWorkshopId.get(workshopModId);
+                        if (banInfo != null) {
+                            steamBanStatus = banInfo.status;
+                            steamBanReason = banInfo.reason;
+                        }
+                    }
+                }
+                if (steamModeEnabled) {
+                    if (zbsFile == null || !zbsFile.isFile()) {
+                        if (g_allowUnsignedMods) {
+                            zbsValid = "unsigned";
+                            zbsSteamId = "";
+                            zbsNotice = "";
+                        } else {
+                            zbsValid = "no";
+                            zbsSteamId = "";
+                            zbsNotice = "Missing .zbs sidecar (allow_unsigned_mods=false)";
+                        }
+                    } else {
+                        ZBSVerifier.Result zbs = ZBSVerifier.verify(jarFile, zbsFile, hash);
+                        zbsValid = zbs.valid() ? "yes" : "no";
+                        zbsSteamId = zbs.steamIdFromZBS();
+                        zbsNotice = zbs.invalidReason();
                     }
                 } else {
-                    ZBSVerifier.Result zbs = ZBSVerifier.verify(jarFile, zbsFile, hash);
-                    zbsValid = zbs.valid() ? "yes" : "no";
-                    zbsSteamId = zbs.steamIdFromZBS();
-                    zbsNotice = zbs.invalidReason();
+                    zbsValid = "";
+                    zbsSteamId = "";
+                    zbsNotice = "";
                 }
-                if ("yes".equals(zbsValid) && g_trustedAuthors.contains(zbsSteamId)) {
+                boolean steamBanned = STEAM_BAN_STATUS_YES.equals(steamBanStatus);
+                if (!steamBanned && "yes".equals(zbsValid) && g_trustedAuthors.contains(zbsSteamId)) {
                     approvals.put(modKey, hash, DECISION_YES);
                     continue;
+                }
+                if (!steamBanned) {
+                    String decision = lookupJarDecision(approvals, modKey, hash);
+                    if (DECISION_YES.equals(decision) || DECISION_NO.equals(decision)) continue;
                 }
                 batchEntries.add(new JarBatchApprovalProtocol.Entry(
                     modKey,
@@ -570,7 +727,9 @@ public class Loader {
                     modDisplay,
                     zbsValid,
                     zbsSteamId,
-                    zbsNotice
+                    zbsNotice,
+                    steamBanStatus,
+                    steamBanReason
                 ));
             }
             if (!batchEntries.isEmpty()) {
@@ -585,6 +744,11 @@ public class Loader {
             String hash = sha256Hex(jarFile);
             boolean shouldSkip = false;
             String skipReason = "";
+            String workshopModId = extractWorkshopModId(jModInfo.modDirectory());
+            SteamBanInfo banInfo = workshopModId.isEmpty()
+                ? new SteamBanInfo(STEAM_BAN_STATUS_UNKNOWN, "Workshop id not found in mod path.")
+                : steamBanByWorkshopId.get(workshopModId);
+            boolean steamBanned = steamModeEnabled && banInfo != null && STEAM_BAN_STATUS_YES.equals(banInfo.status);
             
             // Skip ZombieBuddy itself - it's loaded as a Java agent, not through normal mod loading
             if (jModInfo.javaPkgName().equals(myPackageName)) {
@@ -598,6 +762,13 @@ public class Loader {
             if (lastIndex != null && lastIndex > i) {
                 shouldSkip = true;
                 skipReason = " (package " + jModInfo.javaPkgName() + " is overridden by later mod)";
+            }
+
+            if (!shouldSkip && steamBanned) {
+                shouldSkip = true;
+                skipReason = " (Steam Workshop mod is banned"
+                    + (banInfo.reason != null && !banInfo.reason.isEmpty() ? ": " + banInfo.reason : "")
+                    + ", modId=" + modId + ")";
             }
 
             // ZBS: skipped entirely for policy=allow-all; invalid signatures always block when checks apply.
