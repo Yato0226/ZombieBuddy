@@ -13,6 +13,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,39 +61,45 @@ public final class ZBSVerifier {
         if (!STEAM_ID.matcher(steamId).matches()) {
             return new Result(false, steamId, "Invalid steam_id in .zbs file.");
         }
-        String pubHex;
+        List<String> pubHexes;
         try {
-            pubHex = fetchJavaModZBSHexFromSteam(steamId);
-        } catch (IOException e) {
+            pubHexes = fetchJavaModZBSHexesFromSteam(steamId);
+        } catch (Exception e) {
             return new Result(false, steamId, e.getMessage());
         }
-        if (pubHex == null || pubHex.isEmpty()) {
+        if (pubHexes.isEmpty()) {
             return new Result(
                 false,
                 steamId,
                 "Could not find JavaModZBS:<64 hex> on Steam profile — add it to your profile summary."
             );
         }
-        byte[] pubRaw;
         try {
-            pubRaw = hexToBytes(pubHex);
-        } catch (IllegalArgumentException e) {
-            return new Result(false, steamId, "Invalid JavaModZBS hex on Steam profile.");
-        }
-        if (pubRaw.length != 32) {
-            return new Result(false, steamId, "JavaModZBS on Steam profile must be 64 hex chars (32-byte Ed25519 public key).");
-        }
-        String canonical = "ZBS:" + steamId + ":" + jarSha256Hex.toLowerCase(Locale.ROOT);
-        byte[] msg = canonical.getBytes(StandardCharsets.UTF_8);
-        Ed25519PublicKeyParameters pub = new Ed25519PublicKeyParameters(pubRaw, 0);
-        Ed25519Signer signer = new Ed25519Signer();
-        signer.init(false, pub);
-        signer.update(msg, 0, msg.length);
-        boolean ok = signer.verifySignature(sig);
-        if (!ok) {
+            String canonical = "ZBS:" + steamId + ":" + jarSha256Hex.toLowerCase(Locale.ROOT);
+            byte[] msg = canonical.getBytes(StandardCharsets.UTF_8);
+            for (String pubHex : pubHexes) {
+                byte[] pubRaw;
+                try {
+                    pubRaw = hexToBytes(pubHex);
+                } catch (Exception e) {
+                    return new Result(false, steamId, "Invalid JavaModZBS hex on Steam profile.");
+                }
+                if (pubRaw.length != 32) {
+                    return new Result(false, steamId, "JavaModZBS on Steam profile must be 64 hex chars (32-byte Ed25519 public key).");
+                }
+                Ed25519PublicKeyParameters pub = new Ed25519PublicKeyParameters(pubRaw, 0);
+                Ed25519Signer signer = new Ed25519Signer();
+                signer.init(false, pub);
+                signer.update(msg, 0, msg.length);
+                boolean ok = signer.verifySignature(sig);
+                if (ok) {
+                    return new Result(true, steamId, "");
+                }
+            }
             return new Result(false, steamId, "Invalid signature — JAR may have been tampered with.");
+        } catch (Exception e) {
+            return new Result(false, steamId, e.getMessage());
         }
-        return new Result(true, steamId, "");
     }
 
     /** Steam Community profile URL for {@code steam_id} from {@code .zbs} (vanity or numeric). */
@@ -105,7 +113,7 @@ public final class ZBSVerifier {
         return "https://steamcommunity.com/id/" + steamId + "/";
     }
 
-    private static String fetchJavaModZBSHexFromSteam(String steamId) throws IOException {
+    private static List<String> fetchJavaModZBSHexesFromSteam(String steamId) throws IOException {
         String url = steamCommunityProfileUrl(steamId);
         HttpRequest req = HttpRequest.newBuilder()
             .uri(URI.create(url))
@@ -129,11 +137,12 @@ public final class ZBSVerifier {
             throw new IOException("Could not load Steam profile (HTTP " + code + ").");
         }
         String body = resp.body();
+        List<String> keys = new ArrayList<>();
         Matcher m = JAVA_MOD_ZBS_IN_HTML.matcher(body);
-        if (!m.find()) {
-            return null;
+        while (m.find()) {
+            keys.add(m.group(1));
         }
-        return m.group(1);
+        return keys;
     }
 
     private static final class ParsedZBS {

@@ -19,8 +19,6 @@ import java.util.jar.Manifest;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
-
 import io.github.classgraph.*;
 
 import net.bytebuddy.agent.builder.AgentBuilder;
@@ -30,8 +28,6 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.matcher.ElementMatchers;
 
 import zombie.GameWindow;
-import zombie.core.Core;
-import zombie.core.GameVersion;
 import zombie.gameStates.ChooseGameInfo;
 
 public class Loader {
@@ -43,6 +39,14 @@ public class Loader {
      * {@code 0} = no limit ({@link Process#waitFor()} until exit).
      */
     public static int g_batchApprovalTimeoutSeconds = 0;
+
+    /**
+     * When {@code true} (default), a missing {@code .zbs} next to the JAR is allowed as &quot;unsigned&quot;
+     * (unless {@link #g_jarPolicy} is {@code allow-all}, which skips ZBS checks entirely).
+     * When {@code false}, missing {@code .zbs} is treated like a failed signature for prompt UI and load gating.
+     * Invalid signatures (present {@code .zbs} but verification fails) are always blocked when ZBS is enforced.
+     */
+    public static boolean g_allowUnsignedMods = true;
 
     private static final String POLICY_PROMPT       = "prompt";
     private static final String POLICY_DENY_NEW     = "deny-new";
@@ -77,6 +81,11 @@ public class Loader {
         return g_jarPolicy;
     }
 
+    /** ZBS verification applies for every policy except {@code allow-all}. */
+    private static boolean zbsSignatureChecksEnabled() {
+        return !POLICY_ALLOW_ALL.equals(g_jarPolicy);
+    }
+
     static Set<String> g_known_classes = new HashSet<>();
     static Set<File> g_known_jars = new HashSet<>();
 
@@ -85,8 +94,45 @@ public class Loader {
     static final String DECISION_YES = "yes";
     static final String DECISION_NO  = "no";
     private static final JarDecisionTable g_sessionJarDecisions = new JarDecisionTable();
+    private static final Set<String> g_trustedAuthors = new HashSet<>();
 
-    private enum Approval { ALLOW_PERSIST, ALLOW_SESSION, DENY_PERSIST, DENY_SESSION }
+    private static final Object g_approvalFrontendLock = new Object();
+    private static volatile JavaModApprovalFrontend g_approvalFrontend;
+    /** Set in {@link #configureApprovalFrontend}; resolved lazily — do not touch LWJGL during agent {@code premain}. */
+    private static String g_approvalFrontendConfig = JavaModApprovalFrontends.ARG_AUTO;
+
+    /** Called from {@link Agent#premain} with {@code approval_frontend=...} (default {@code auto}). */
+    public static void configureApprovalFrontend(String value) {
+        String v = value == null ? "" : value.trim();
+        synchronized (g_approvalFrontendLock) {
+            g_approvalFrontendConfig = v.isEmpty() ? JavaModApprovalFrontends.ARG_AUTO : v;
+            g_approvalFrontend = null;
+        }
+        Logger.info("Java mod approval frontend: " + g_approvalFrontendConfig);
+    }
+
+    private static JavaModApprovalFrontend approvalFrontend() {
+        JavaModApprovalFrontend f = g_approvalFrontend;
+        if (f != null) {
+            return f;
+        }
+        synchronized (g_approvalFrontendLock) {
+            f = g_approvalFrontend;
+            if (f != null) {
+                return f;
+            }
+            g_approvalFrontend = JavaModApprovalFrontends.resolve(g_approvalFrontendConfig);
+            return g_approvalFrontend;
+        }
+    }
+
+    static void doLoadingWaitJavaModApproval() {
+        GameWindow.DoLoadingText(LOADING_WAIT_JAVA_MOD_APPROVAL);
+    }
+
+    static void doLoadingModsDefault() {
+        GameWindow.DoLoadingText(LOADING_MODS);
+    }
 
     private static String lookupJarDecision(JarDecisionTable disk, String modId, String sha256) {
         if (sha256 == null) return null;
@@ -307,92 +353,10 @@ public class Loader {
         }
     }
 
-    private static final String DIALOG_TITLE = "ZombieBuddy Java mod approval";
-
     /** Shown on the loading screen while batch or native approval UI is blocking. */
     private static final String LOADING_WAIT_JAVA_MOD_APPROVAL = "Waiting for Java mods approval…";
     /** Restores the same label the game uses while loading mods (see {@link GameWindow#DoLoadingText}). */
     private static final String LOADING_MODS = "Loading Mods";
-
-    /**
-     * Shows a yes/no TinyFD dialog. Returns:
-     *   TRUE  — Yes, FALSE — No,
-     *   null  — no dialog shown (dialog unavailable / native error).
-     * Using LWJGL's bundled TinyFD instead of Swing because PZ launches with
-     * {@code -Djava.awt.headless=true}, which makes every AWT call throw
-     * {@link java.awt.HeadlessException} no matter how hard we poke the cache.
-     */
-    private static Boolean tinyfdYesNo(String msg) {
-        Class<?> dialogClass = Accessor.findClass("org.lwjgl.util.tinyfd.TinyFileDialogs");
-        if (dialogClass == null) {
-            if (Core.getInstance().getGameVersion().isGreaterThan(GameVersion.parse("42.14"))) {
-                Logger.error("tinyfdYesNo(): game version > 42.14 but TinyFileDialogs missing; returning null");
-                return null;
-            }
-            Logger.info("tinyfdYesNo(): pre-42.15 and TinyFileDialogs missing; defaulting YES");
-            return Boolean.TRUE;
-        }
-        try {
-            Object result = Accessor.callByName(
-                dialogClass,
-                "tinyfd_messageBox",
-                DIALOG_TITLE,
-                msg,
-                "yesno",
-                "warning",
-                false   // default: No
-            );
-            return Boolean.TRUE.equals(result);
-        } catch (Throwable t) {
-            Logger.error("Could not show dialog: " + t);
-            return null;
-        }
-    }
-
-    /**
-     * Two-stage prompt: allow/deny, then (always) "remember this decision?".
-     * Pressing No / closing a dialog defaults to session-only — never silently
-     * persists on an accident.
-     */
-    private static Approval askUserApproveJar(String modId, File jarFile, String sha256) {
-        GameWindow.DoLoadingText(LOADING_WAIT_JAVA_MOD_APPROVAL);
-        try {
-            String modified = (jarFile != null && jarFile.exists())
-                ? java.time.Instant.ofEpochMilli(jarFile.lastModified())
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                : "<unknown>";
-            Boolean allow = tinyfdYesNo(
-                "Allow Java mod to load?\n\n"
-                    + "Mod: " + modId + "\n\n"
-                    + "JAR: " + jarFile + "\n\n"
-                    + "Modified: " + modified + "\n\n"
-                    + "SHA-256: " + sha256 + "\n\n"
-                    + "Only allow if you trust this mod source."
-            );
-            if (allow == null) return Approval.DENY_SESSION; // dialog failed — fail closed, but don't persist
-
-            String verb = allow ? "APPROVAL" : "DENIAL";
-            String yesHint = allow
-                ? "Yes — save to ~/.zombie_buddy/" + JavaModApprovalsStore.JSON_FILE_NAME + " and do not ask again."
-                : "Yes — save as denied; this JAR will be blocked without asking.";
-            String noHint = allow
-                ? "No  — allow only for this game session."
-                : "No  — deny only for this game session (ask again next launch).";
-
-            Boolean remember = tinyfdYesNo(
-                "Remember this " + verb + " across game sessions?\n\n"
-                    + "Mod: " + modId + "\n\n"
-                    + yesHint + "\n\n"
-                    + noHint
-            );
-            boolean persist = Boolean.TRUE.equals(remember);
-            if (allow)  return persist ? Approval.ALLOW_PERSIST : Approval.ALLOW_SESSION;
-            else        return persist ? Approval.DENY_PERSIST  : Approval.DENY_SESSION;
-        } finally {
-            GameWindow.DoLoadingText(LOADING_MODS);
-        }
-    }
 
     private static boolean isJarAllowedByPolicy(String modId, JavaModInfo jModInfo, JarDecisionTable disk, String hash) {
         File jarFile = jModInfo != null ? jModInfo.getJarFileAsFile() : null;
@@ -417,27 +381,16 @@ public class Loader {
             return false;
         }
 
-        switch (askUserApproveJar(modKey, jarFile, hash)) {
-            case ALLOW_PERSIST:
-                disk.put(modKey, hash, DECISION_YES);
-                return true;
-            case ALLOW_SESSION:
-                g_sessionJarDecisions.put(modKey, hash, DECISION_YES);
-                return true;
-            case DENY_PERSIST:
-                disk.put(modKey, hash, DECISION_NO);
-                return false;
-            case DENY_SESSION:
-            default:
-                g_sessionJarDecisions.put(modKey, hash, DECISION_NO);
-                return false;
-        }
+        // policy=prompt: decisions come from approvePendingMods() in loadMods(); should not reach here.
+        Logger.warn("No approval decision for " + modKey + " (hash " + hash + ") — denying session-only.");
+        g_sessionJarDecisions.put(modKey, hash, DECISION_NO);
+        return false;
     }
 
     /**
      * Path to the ZombieBuddy JAR on disk (for spawning a non-headless child JVM). Returns null if not running from a plain JAR file.
      */
-    private static String getZombieBuddyJarPathForSubprocess() {
+    public static String getZombieBuddyJarPathForSubprocess() {
         try {
             CodeSource cs = Loader.class.getProtectionDomain().getCodeSource();
             if (cs == null || cs.getLocation() == null) return null;
@@ -450,7 +403,15 @@ public class Loader {
         }
     }
 
-    private static void applyBatchOutLines(List<JarBatchApprovalProtocol.OutLine> lines, JarDecisionTable disk) {
+    public static void applyBatchApprovalLines(List<JarBatchApprovalProtocol.OutLine> lines, JarDecisionTable disk) {
+        applyBatchApprovalLines(lines, disk, g_trustedAuthors);
+    }
+
+    public static void applyBatchApprovalLines(
+        List<JarBatchApprovalProtocol.OutLine> lines,
+        JarDecisionTable disk,
+        Set<String> trustedAuthors
+    ) {
         if (lines == null) return;
         for (JarBatchApprovalProtocol.OutLine ol : lines) {
             String tok = ol.token;
@@ -472,100 +433,11 @@ public class Loader {
                     g_sessionJarDecisions.put(modId, hash, DECISION_NO);
                     break;
             }
-        }
-    }
-
-    /**
-     * Runs {@link BatchJarApprovalMain} in a separate JVM with {@code java.awt.headless=false}.
-     * On failure, optional timeout ({@link #g_batchApprovalTimeoutSeconds}), or invalid response,
-     * returns false so {@link #isJarAllowedByPolicy} falls back to TinyFD.
-     */
-    private static boolean tryRunBatchApprovalSubprocess(List<JarBatchApprovalProtocol.Entry> pending, JarDecisionTable disk) {
-        if (pending.isEmpty()) return true;
-        String jarPath = getZombieBuddyJarPathForSubprocess();
-        if (jarPath == null) {
-            Logger.warn("Batch approval skipped: ZombieBuddy not loaded from a JAR (or path unknown); using per-mod dialogs");
-            return false;
-        }
-        GameWindow.DoLoadingText(LOADING_WAIT_JAVA_MOD_APPROVAL);
-        boolean batchSucceeded = false;
-        Path tmpIn = null;
-        Path tmpOut = null;
-        try {
-            tmpIn = Files.createTempFile("zb-batch-req-", ".txt");
-            tmpOut = Files.createTempFile("zb-batch-resp-", ".txt");
-            JarBatchApprovalProtocol.writeRequest(tmpIn, pending);
-            String javaExe = Path.of(
-                System.getProperty("java.home"),
-                "bin",
-                System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "java.exe" : "java"
-            ).toAbsolutePath().toString();
-            ProcessBuilder pb = new ProcessBuilder(
-                javaExe,
-                "-Djava.awt.headless=false",
-                "-cp",
-                jarPath,
-                BatchJarApprovalMain.class.getName(),
-                tmpIn.toAbsolutePath().toString(),
-                tmpOut.toAbsolutePath().toString()
-            );
-            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-            pb.redirectError(ProcessBuilder.Redirect.DISCARD);
-            Logger.info("Starting batch approval subprocess: commandLine=" + pb.command()
-                + " pendingEntries=" + pending.size()
-                + " timeoutSeconds=" + g_batchApprovalTimeoutSeconds + " (0 = no timeout)");
-            Process p = pb.start();
-            boolean timedOut = false;
-            if (g_batchApprovalTimeoutSeconds <= 0) {
-                p.waitFor();
-            } else {
-                timedOut = !p.waitFor(g_batchApprovalTimeoutSeconds, TimeUnit.SECONDS);
-            }
-            if (timedOut) {
-                Logger.warn("Batch approval subprocess timed out after " + g_batchApprovalTimeoutSeconds
-                    + "s; falling back to per-mod dialogs");
-                p.destroyForcibly();
-                return false;
-            }
-            if (p.exitValue() != 0) {
-                Logger.info("Batch approval subprocess exited with " + p.exitValue() + "; falling back to per-mod dialogs");
-                return false;
-            }
-            List<JarBatchApprovalProtocol.OutLine> lines = JarBatchApprovalProtocol.readResponse(tmpOut);
-            if (lines == null) {
-                Logger.warn("Batch approval response malformed; falling back to per-mod dialogs");
-                return false;
-            }
-            if (lines.size() != pending.size()) {
-                Logger.warn("Batch approval response row count mismatch; falling back to per-mod dialogs");
-                return false;
-            }
-            for (JarBatchApprovalProtocol.Entry e : pending) {
-                int matches = 0;
-                for (JarBatchApprovalProtocol.OutLine ol : lines) {
-                    if (e.modKey.equals(ol.modId) && e.sha256.equals(ol.sha256)) {
-                        matches++;
-                    }
+            if (trustedAuthors != null) {
+                String trustedSteamId = ol.trustedAuthorSteamId == null ? "" : ol.trustedAuthorSteamId;
+                if (!trustedSteamId.isEmpty()) {
+                    trustedAuthors.add(trustedSteamId);
                 }
-                if (matches != 1) {
-                    Logger.warn("Batch approval missing or duplicate row for " + e.modKey + "; falling back");
-                    return false;
-                }
-            }
-            applyBatchOutLines(lines, disk);
-            batchSucceeded = true;
-            return true;
-        } catch (Exception e) {
-            Logger.error("Batch approval subprocess failed: " + e);
-            return false;
-        } finally {
-            if (batchSucceeded) {
-                GameWindow.DoLoadingText(LOADING_MODS);
-            }
-            try {
-                if (tmpIn != null) Files.deleteIfExists(tmpIn);
-                if (tmpOut != null) Files.deleteIfExists(tmpOut);
-            } catch (Exception ignored) {
             }
         }
     }
@@ -621,8 +493,12 @@ public class Loader {
         String myPackageName = Loader.class.getPackage().getName();
         ArrayList<Boolean> shouldSkipList = new ArrayList<>();
         ArrayList<String> skipReasons = new ArrayList<>();
-        JarDecisionTable approvals = JavaModApprovalsStore.load();
+        JavaModApprovalsStore.Snapshot approvalsSnapshot = JavaModApprovalsStore.loadSnapshot();
+        JarDecisionTable approvals = approvalsSnapshot.jarDecisions();
         JarDecisionTable approvalsBefore = approvals.copy();
+        Set<String> trustedAuthorsBefore = new HashSet<>(approvalsSnapshot.trustedAuthors());
+        g_trustedAuthors.clear();
+        g_trustedAuthors.addAll(trustedAuthorsBefore);
 
         // Structural-only skip flags (must match the policy loop below) — used to batch all PROMPT dialogs.
         ArrayList<Boolean> structuralOnlySkip = new ArrayList<>();
@@ -660,33 +536,45 @@ public class Loader {
                 if (modDisplay == null || modDisplay.trim().isEmpty()) {
                     modDisplay = modId != null ? modId : "";
                 }
-                String author = jModInfo.author();
-                if (author == null) {
-                    author = "";
-                }
                 File zbsFile = jarFile != null ? new File(jarFile.getAbsolutePath() + ".zbs") : null;
-                ZBSVerifier.Result zbs = ZBSVerifier.verify(jarFile, zbsFile, hash);
-                String zbsValid = zbs.valid() ? "yes" : "no";
-                String zbsSteamId = zbs.steamIdFromZBS();
-                String zbsNotice = zbs.invalidReason();
+                String zbsValid;
+                String zbsSteamId;
+                String zbsNotice;
+                if (zbsFile == null || !zbsFile.isFile()) {
+                    if (g_allowUnsignedMods) {
+                        zbsValid = "unsigned";
+                        zbsSteamId = "";
+                        zbsNotice = "";
+                    } else {
+                        zbsValid = "no";
+                        zbsSteamId = "";
+                        zbsNotice = "Missing .zbs sidecar (allow_unsigned_mods=false)";
+                    }
+                } else {
+                    ZBSVerifier.Result zbs = ZBSVerifier.verify(jarFile, zbsFile, hash);
+                    zbsValid = zbs.valid() ? "yes" : "no";
+                    zbsSteamId = zbs.steamIdFromZBS();
+                    zbsNotice = zbs.invalidReason();
+                }
+                if ("yes".equals(zbsValid) && g_trustedAuthors.contains(zbsSteamId)) {
+                    approvals.put(modKey, hash, DECISION_YES);
+                    continue;
+                }
                 batchEntries.add(new JarBatchApprovalProtocol.Entry(
                     modKey,
                     modId,
-                    jarFile != null ? jarFile.getAbsolutePath() : "",
+                    jarFile.getAbsolutePath(),
                     hash,
                     modified,
                     priorHintForBatchRow(approvals, modKey, hash),
                     modDisplay,
-                    author,
                     zbsValid,
                     zbsSteamId,
                     zbsNotice
                 ));
             }
             if (!batchEntries.isEmpty()) {
-                if (!tryRunBatchApprovalSubprocess(batchEntries, approvals)) {
-                    Logger.info("Batch Java mod approval UI unavailable or incomplete; using per-mod native dialogs.");
-                }
+                approvalFrontend().approvePendingMods(batchEntries, approvals);
             }
         }
 
@@ -710,6 +598,23 @@ public class Loader {
             if (lastIndex != null && lastIndex > i) {
                 shouldSkip = true;
                 skipReason = " (package " + jModInfo.javaPkgName() + " is overridden by later mod)";
+            }
+
+            // ZBS: skipped entirely for policy=allow-all; invalid signatures always block when checks apply.
+            if (!shouldSkip && zbsSignatureChecksEnabled() && jarFile != null && hash != null) {
+                File zbsFile = new File(jarFile.getAbsolutePath() + ".zbs");
+                if (!zbsFile.isFile()) {
+                    if (!g_allowUnsignedMods) {
+                        shouldSkip = true;
+                        skipReason = " (missing .zbs; allow_unsigned_mods=false, modId=" + modId + ")";
+                    }
+                } else {
+                    ZBSVerifier.Result zbs = ZBSVerifier.verify(jarFile, zbsFile, hash);
+                    if (!zbs.valid()) {
+                        shouldSkip = true;
+                        skipReason = " (invalid ZBS: " + zbs.invalidReason() + ", modId=" + modId + ")";
+                    }
+                }
             }
 
             // Enforce Java JAR policy for new/changed binaries.
@@ -750,8 +655,8 @@ public class Loader {
             }
         }
 
-        if (!approvalsBefore.equals(approvals)) {
-            JavaModApprovalsStore.save(approvals);
+        if (!approvalsBefore.equals(approvals) || !trustedAuthorsBefore.equals(g_trustedAuthors)) {
+            JavaModApprovalsStore.save(approvals, g_trustedAuthors);
         }
         
         if (!shouldSkipList.isEmpty()) {

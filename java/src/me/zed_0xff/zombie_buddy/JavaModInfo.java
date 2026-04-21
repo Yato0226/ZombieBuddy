@@ -14,12 +14,10 @@ public record JavaModInfo(
     String zbVersionMin, // Minimum ZombieBuddy version required
     String zbVersionMax, // Maximum ZombieBuddy version required
     /** From {@code name=} in mod.info; may be null. */
-    String displayName,
-    /** From {@code author=} in mod.info; may be null. */
-    String author
+    String displayName
 ) {
     public JavaModInfo(File modDirectory, File modInfoFile) {
-        this(modDirectory, modInfoFile, null, null, null, null, null, null);
+        this(modDirectory, modInfoFile, null, null, null, null, null);
     }
     
     public boolean hasJarFile() {
@@ -44,8 +42,7 @@ public record JavaModInfo(
         String javaPkgName,
         String zbVersionMin,
         String zbVersionMax,
-        String displayName,
-        String author
+        String displayName
     ) {}
 
     private static boolean isEmpty(String s) {
@@ -103,8 +100,7 @@ public record JavaModInfo(
             javaPkgName,
             zbVersionMin,
             zbVersionMax,
-            parsed.displayName(),
-            parsed.author()
+            parsed.displayName()
         );
     }
 
@@ -125,7 +121,6 @@ public record JavaModInfo(
         String zbVersionMin = null;
         String zbVersionMax = null;
         String displayName = null;
-        String author = null;
 
         try (var reader = new java.io.BufferedReader(new java.io.FileReader(modInfoFile))) {
             String line;
@@ -164,10 +159,6 @@ public record JavaModInfo(
                     if (displayName == null && !value.isEmpty()) {
                         displayName = value;
                     }
-                } else if (lowerLine.startsWith("author=")) {
-                    if (author == null && !value.isEmpty()) {
-                        author = value;
-                    }
                 }
             }
         } catch (Exception e) {
@@ -175,7 +166,7 @@ public record JavaModInfo(
             return null;
         }
 
-        return new ParsedValues(jarFilePath, javaPkgName, zbVersionMin, zbVersionMax, displayName, author);
+        return new ParsedValues(jarFilePath, javaPkgName, zbVersionMin, zbVersionMax, displayName);
     }
     
     /**

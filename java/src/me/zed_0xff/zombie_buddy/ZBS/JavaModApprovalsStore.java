@@ -3,7 +3,11 @@ package me.zed_0xff.zombie_buddy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import mjson.Json;
 
@@ -35,6 +39,9 @@ public final class JavaModApprovalsStore {
     public static final String LEGACY_TXT_FILE_NAME = "java_mod_approvals.txt";
 
     private static final int FORMAT_VERSION = 1;
+    private static final String KEY_FORMAT_VERSION = "formatVersion";
+    private static final String KEY_JAR_DECISIONS = "jarDecisions";
+    private static final String KEY_TRUSTED_AUTHORS = "trustedAuthors";
 
     private JavaModApprovalsStore() {}
 
@@ -50,25 +57,53 @@ public final class JavaModApprovalsStore {
         return directory().resolve(LEGACY_TXT_FILE_NAME);
     }
 
-    static JarDecisionTable load() {
+    static final class Snapshot {
+        private final JarDecisionTable jarDecisions;
+        private final Set<String> trustedAuthors;
+
+        Snapshot(JarDecisionTable jarDecisions, Set<String> trustedAuthors) {
+            this.jarDecisions = jarDecisions;
+            this.trustedAuthors = trustedAuthors;
+        }
+
+        JarDecisionTable jarDecisions() {
+            return jarDecisions;
+        }
+
+        Set<String> trustedAuthors() {
+            return trustedAuthors;
+        }
+    }
+
+    static Snapshot loadSnapshot() {
         Path jp = jsonPath();
         Path leg = legacyTxtPath();
         JarDecisionTable table = new JarDecisionTable();
+        Set<String> trustedAuthors = new HashSet<>();
         try {
             if (Files.exists(jp)) {
-                readJsonInto(jp, table);
-                Logger.info("Java mod approvals JSON read from " + jp + ": " + table.decisionCount() + " decision(s)");
+                readJsonInto(jp, table, trustedAuthors);
+                Logger.info("Java mod approvals JSON read from " + jp + ": " + table.decisionCount()
+                    + " decision(s), " + trustedAuthors.size() + " trusted author(s)");
             }
             if (Files.exists(leg)) {
                 Files.delete(leg);
                 Logger.info("Deleted legacy Java mod approvals file " + leg.getFileName()
                     + " without importing (use " + jp.getFileName() + " only)");
             }
-            return table;
+            return new Snapshot(table, trustedAuthors);
         } catch (Exception e) {
             Logger.error("Could not load Java mod approvals: " + e);
         }
-        return table;
+        return new Snapshot(table, trustedAuthors);
+    }
+
+    static JarDecisionTable load() {
+        return loadSnapshot().jarDecisions();
+    }
+
+    static Set<String> loadTrustedAuthors() {
+        return new HashSet<>(loadSnapshot().trustedAuthors());
     }
 
     /**
@@ -76,6 +111,10 @@ public final class JavaModApprovalsStore {
      * replacing only {@code jarDecisions}; other top-level keys are kept when possible.
      */
     static void save(JarDecisionTable table) {
+        save(table, loadTrustedAuthors());
+    }
+
+    static void save(JarDecisionTable table, Set<String> trustedAuthors) {
         try {
             Path jp = jsonPath();
             if (jp.getParent() != null) {
@@ -96,13 +135,16 @@ public final class JavaModApprovalsStore {
             } else {
                 root = Json.object();
             }
-            if (!root.has("formatVersion")) {
-                root.set("formatVersion", FORMAT_VERSION);
+            if (!root.has(KEY_FORMAT_VERSION)) {
+                root.set(KEY_FORMAT_VERSION, FORMAT_VERSION);
             }
-            root.set("jarDecisions", jarDecisionsToJson(table));
+            root.set(KEY_JAR_DECISIONS, jarDecisionsToJson(table));
+            root.set(KEY_TRUSTED_AUTHORS, trustedAuthorsToJson(trustedAuthors));
             Files.writeString(jp, MjsonPretty.format(root), StandardCharsets.UTF_8);
             int written = table == null ? 0 : table.decisionCount();
-            Logger.info("Java mod approvals JSON written to " + jp + ": " + written + " decision(s)");
+            int trustedCount = trustedAuthors == null ? 0 : trustedAuthors.size();
+            Logger.info("Java mod approvals JSON written to " + jp + ": " + written
+                + " decision(s), " + trustedCount + " trusted author(s)");
         } catch (Exception e) {
             Logger.error("Could not save Java mod approvals: " + e);
         }
@@ -124,7 +166,19 @@ public final class JavaModApprovalsStore {
         return jarDecisions;
     }
 
-    private static void readJsonInto(Path jp, JarDecisionTable into) throws Exception {
+    static Json trustedAuthorsToJson(Set<String> trustedAuthors) {
+        List<Json> values = new ArrayList<>();
+        if (trustedAuthors != null) {
+            for (String steamId : trustedAuthors) {
+                if (steamId != null && !steamId.isEmpty()) {
+                    values.add(Json.make(steamId));
+                }
+            }
+        }
+        return Json.array(values.toArray(new Object[0]));
+    }
+
+    private static void readJsonInto(Path jp, JarDecisionTable into, Set<String> trustedAuthors) throws Exception {
         String raw = Files.readString(jp, StandardCharsets.UTF_8);
         String text = raw == null ? "" : raw.trim();
         if (text.isEmpty()) {
@@ -135,8 +189,9 @@ public final class JavaModApprovalsStore {
             Logger.warn("Java mod approvals file is not a JSON object; ignoring nested decisions");
             return;
         }
-        Json jarDecisions = root.at("jarDecisions");
+        Json jarDecisions = root.at(KEY_JAR_DECISIONS);
         if (jarDecisions == null || !jarDecisions.isObject()) {
+            readTrustedAuthors(root, trustedAuthors);
             return;
         }
         for (Map.Entry<String, Json> modEntry : jarDecisions.asJsonMap().entrySet()) {
@@ -147,6 +202,26 @@ public final class JavaModApprovalsStore {
                 Json jv = he.getValue();
                 if (jv == null || !jv.isBoolean()) continue;
                 into.put(modId, he.getKey(), jv.asBoolean() ? Loader.DECISION_YES : Loader.DECISION_NO);
+            }
+        }
+        readTrustedAuthors(root, trustedAuthors);
+    }
+
+    private static void readTrustedAuthors(Json root, Set<String> trustedAuthors) {
+        if (trustedAuthors == null) {
+            return;
+        }
+        Json arr = root.at(KEY_TRUSTED_AUTHORS);
+        if (arr == null || !arr.isArray()) {
+            return;
+        }
+        for (Json item : arr.asJsonList()) {
+            if (item == null || !item.isString()) {
+                continue;
+            }
+            String steamId = item.asString();
+            if (steamId != null && !steamId.isEmpty()) {
+                trustedAuthors.add(steamId);
             }
         }
     }

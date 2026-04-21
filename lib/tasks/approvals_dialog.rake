@@ -36,7 +36,6 @@ def zb_sample_batch_request_v5(entries)
     lines << e[:modified]
     lines << e[:prior_hint].to_s
     lines << e[:mod_display_name].to_s
-    lines << e[:author].to_s
     lines << e[:zbs_valid].to_s
     lines << e[:zbs_steam_id].to_s
     lines << e[:zbs_notice].to_s
@@ -55,20 +54,20 @@ namespace :zb do
 
     hex64 = "a" * 64
 
-    sample = [
+    sample = 3.times.map do |i|
       {
-        mod_key: "DemoModOk",
-        mod_id: "DemoModOk",
-        jar_path: "/tmp/DemoModOk/media/java/client/DemoModOk.jar",
+        mod_key: "DemoModOk#{i}",
+        mod_id: "DemoModOk#{i}",
+        jar_path: "/tmp/DemoModOk#{i}/media/java/client/DemoModOk.jar",
         sha256: hex64,
         modified: "2025-01-01",
         prior_hint: "",
         mod_display_name: "Signed OK",
-        author: "Alice",
         zbs_valid: "yes",
-        zbs_steam_id: "alice_mods",
+        zbs_steam_id: "zed_0xff",
         zbs_notice: ""
-      },
+      }
+    end + [
       {
         mod_key: "DemoModBad",
         mod_id: "DemoModBad",
@@ -77,7 +76,6 @@ namespace :zb do
         modified: "2025-01-02",
         prior_hint: "",
         mod_display_name: "Tampered",
-        author: "Bob",
         zbs_valid: "no",
         zbs_steam_id: "",
         zbs_notice: "Invalid signature — JAR may have been tampered with."
@@ -90,7 +88,6 @@ namespace :zb do
         modified: "2024-12-01",
         prior_hint: "",
         mod_display_name: "No ZBS fields",
-        author: "Carol",
         zbs_valid: "",
         zbs_steam_id: "",
         zbs_notice: ""

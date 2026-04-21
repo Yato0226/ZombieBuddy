@@ -16,9 +16,6 @@ import java.util.Locale;
  */
 public final class JarBatchApprovalProtocol {
 
-    /** Legacy; {@link #readRequest} still accepts this. */
-    static final String HDR_REQ_V3 = "ZB_BATCH_V3";
-    static final String HDR_REQ_V4 = "ZB_BATCH_V4";
     static final String HDR_REQ  = "ZB_BATCH_V5";
     static final String HDR_RESP = "ZB_BATCH_V2_OUT";
 
@@ -37,11 +34,9 @@ public final class JarBatchApprovalProtocol {
         public final String priorHint;
         /** Display name from mod.info {@code name=}; may be empty (UI falls back to {@link #modId}). */
         public final String modDisplayName;
-        /** From mod.info {@code author=}. */
-        public final String author;
-        /** {@code yes} / {@code no} / empty (legacy request without ZBS fields). */
+        /** {@code yes} / {@code no} / {@code unsigned} (missing .zbs while allowed) / empty (legacy). */
         public final String zbsValid;
-        /** Steam custom URL id from {@code .zbs} when present. */
+        /** Author's Steam id from {@code .zbs} when present. */
         public final String zbsSteamId;
         /** Non-empty when {@link #zbsValid} is {@code no}. */
         public final String zbsNotice;
@@ -54,7 +49,6 @@ public final class JarBatchApprovalProtocol {
             String modifiedHuman,
             String priorHint,
             String modDisplayName,
-            String author,
             String zbsValid,
             String zbsSteamId,
             String zbsNotice
@@ -66,23 +60,28 @@ public final class JarBatchApprovalProtocol {
             this.modifiedHuman = modifiedHuman != null ? modifiedHuman : "";
             this.priorHint = priorHint != null ? priorHint : "";
             this.modDisplayName = modDisplayName != null ? modDisplayName : "";
-            this.author = author != null ? author : "";
             this.zbsValid = zbsValid != null ? zbsValid : "";
             this.zbsSteamId = zbsSteamId != null ? zbsSteamId : "";
             this.zbsNotice = zbsNotice != null ? zbsNotice : "";
         }
     }
 
-    /** One row in the batch response file: mod id, JAR hash, and UI token. */
+    /** One row in the batch response file: mod id, JAR hash, UI token, optional trusted author steam_id. */
     public static final class OutLine {
         public final String modId;
         public final String sha256;
         public final String token;
+        public final String trustedAuthorSteamId;
 
         public OutLine(String modId, String sha256, String token) {
+            this(modId, sha256, token, "");
+        }
+
+        public OutLine(String modId, String sha256, String token, String trustedAuthorSteamId) {
             this.modId = modId != null ? modId : "";
             this.sha256 = sha256 != null ? sha256 : "";
             this.token = token != null ? token : "";
+            this.trustedAuthorSteamId = trustedAuthorSteamId != null ? trustedAuthorSteamId : "";
         }
     }
 
@@ -109,8 +108,6 @@ public final class JarBatchApprovalProtocol {
                 w.newLine();
                 w.write(escape(e.modDisplayName));
                 w.newLine();
-                w.write(escape(e.author));
-                w.newLine();
                 w.write(escape(e.zbsValid));
                 w.newLine();
                 w.write(escape(e.zbsSteamId));
@@ -124,10 +121,7 @@ public final class JarBatchApprovalProtocol {
     public static List<Entry> readRequest(Path path) throws IOException {
         try (BufferedReader r = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             String hdr = r.readLine();
-            boolean v3 = HDR_REQ_V3.equals(hdr);
-            boolean v4 = HDR_REQ_V4.equals(hdr);
-            boolean v5 = HDR_REQ.equals(hdr);
-            if (!v3 && !v4 && !v5) {
+            if (!HDR_REQ.equals(hdr)) {
                 throw new IOException("Bad request header: " + hdr);
             }
             String nLine = r.readLine();
@@ -146,24 +140,14 @@ public final class JarBatchApprovalProtocol {
                 String modHuman = unescape(readMandatory(r, "modifiedHuman"));
                 String priorHint = unescape(readMandatory(r, "priorHint"));
                 String modDisplayName;
-                String author;
                 String zbsValid = "";
                 String zbsSteamId = "";
                 String zbsNotice = "";
-                if (v5) {
-                    modDisplayName = unescape(readMandatory(r, "modDisplayName"));
-                    author = unescape(readMandatory(r, "author"));
-                    zbsValid = unescape(readMandatory(r, "zbsValid"));
-                    zbsSteamId = unescape(readMandatory(r, "zbsSteamId"));
-                    zbsNotice = unescape(readMandatory(r, "zbsNotice"));
-                } else if (v4) {
-                    modDisplayName = unescape(readMandatory(r, "modDisplayName"));
-                    author = unescape(readMandatory(r, "author"));
-                } else {
-                    modDisplayName = "";
-                    author = "";
-                }
-                out.add(new Entry(modKey, modId, jarPath, sha, modHuman, priorHint, modDisplayName, author,
+                modDisplayName = unescape(readMandatory(r, "modDisplayName"));
+                zbsValid = unescape(readMandatory(r, "zbsValid"));
+                zbsSteamId = unescape(readMandatory(r, "zbsSteamId"));
+                zbsNotice = unescape(readMandatory(r, "zbsNotice"));
+                out.add(new Entry(modKey, modId, jarPath, sha, modHuman, priorHint, modDisplayName,
                     zbsValid, zbsSteamId, zbsNotice));
             }
             return out;
@@ -177,7 +161,8 @@ public final class JarBatchApprovalProtocol {
     }
 
     /**
-     * Writes one line per decision: {@code modId + '\t' + sha256 + '\t' + token} (fields escaped).
+     * Writes one line per decision:
+     * {@code modId + '\t' + sha256 + '\t' + token + ['\t' + trustedAuthorSteamId]} (fields escaped).
      */
     public static void writeResponse(Path path, List<OutLine> lines) throws IOException {
         try (BufferedWriter w = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
@@ -189,6 +174,10 @@ public final class JarBatchApprovalProtocol {
                 w.write(escape(ol.sha256));
                 w.write('\t');
                 w.write(escape(ol.token));
+                if (ol.trustedAuthorSteamId != null && !ol.trustedAuthorSteamId.isEmpty()) {
+                    w.write('\t');
+                    w.write(escape(ol.trustedAuthorSteamId));
+                }
                 w.newLine();
             }
         }
@@ -211,11 +200,13 @@ public final class JarBatchApprovalProtocol {
                 if (t1 <= 0) return null;
                 int t2 = line.indexOf('\t', t1 + 1);
                 if (t2 <= t1 || t2 >= line.length() - 1) return null;
+                int t3 = line.indexOf('\t', t2 + 1);
                 String modId = unescape(line.substring(0, t1));
                 String sha = unescape(line.substring(t1 + 1, t2));
-                String tok = unescape(line.substring(t2 + 1));
+                String tok = unescape(t3 < 0 ? line.substring(t2 + 1) : line.substring(t2 + 1, t3));
                 if (!isValidToken(tok)) return null;
-                out.add(new OutLine(modId, sha, tok));
+                String trustedAuthorSteamId = t3 < 0 ? "" : unescape(line.substring(t3 + 1));
+                out.add(new OutLine(modId, sha, tok, trustedAuthorSteamId));
             }
             return out;
         }

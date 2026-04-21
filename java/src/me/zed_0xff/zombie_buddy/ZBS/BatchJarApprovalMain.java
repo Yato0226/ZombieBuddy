@@ -34,7 +34,9 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Standalone entry point for a non-headless JVM: shows one Swing window listing
@@ -98,11 +100,7 @@ public final class BatchJarApprovalMain {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JLabel intro = new JLabel(
-            "<html>For each mod choose <b>Yes</b> (load JAR) or <b>No</b> (block). "
-                + "Valid <b>ZBS</b> rows are green; invalid/tampered rows are red (Allow stays <b>No</b>). "
-                + "The checkbox below toggles <b>session vs persist</b> for your choices — including denials on bad-signature rows.</html>"
-        );
+        JLabel intro = new JLabel("<html>For each mod choose <b>Yes</b> (load JAR) or <b>No</b> (block).</html>");
         root.add(intro, BorderLayout.NORTH);
 
         JPanel grid = new JPanel(new GridBagLayout());
@@ -146,11 +144,18 @@ public final class BatchJarApprovalMain {
 
         @SuppressWarnings("unchecked")
         final JRadioButton[] allowYes = new JRadioButton[entries.size()];
+        @SuppressWarnings("unchecked")
+        final JRadioButton[] allowNo = new JRadioButton[entries.size()];
+        @SuppressWarnings("unchecked")
+        final JCheckBox[] trustChecks = new JCheckBox[entries.size()];
+        final boolean[] initialAllowYes = new boolean[entries.size()];
+        final String[] authorGroupKey = new String[entries.size()];
 
         int i = 0;
         for (JarBatchApprovalProtocol.Entry e : entries) {
             boolean zbsYes = "yes".equals(e.zbsValid);
             boolean zbsNo = "no".equals(e.zbsValid);
+            boolean zbsUnsigned = "unsigned".equals(e.zbsValid);
             Color rowBg = zbsYes ? ZBS_ROW_OK : (zbsNo ? ZBS_ROW_BAD : null);
 
             c.gridy = i + 1;
@@ -177,7 +182,7 @@ public final class BatchJarApprovalMain {
             }
             if (zbsYes && e.zbsSteamId != null && !e.zbsSteamId.isEmpty()) {
                 String profileUrl = ZBSVerifier.steamCommunityProfileUrl(e.zbsSteamId);
-                String linkText = (e.author != null && !e.author.trim().isEmpty()) ? e.author.trim() : e.zbsSteamId;
+                String linkText = e.zbsSteamId;
                 JLabel linkLab = new JLabel(
                     "<html><a href=\"" + profileUrl + "\">" + escapeHtml(linkText) + "</a></html>");
                 linkLab.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -204,8 +209,16 @@ public final class BatchJarApprovalMain {
                     warn.setBackground(rowBg);
                 }
                 authorCell.add(warn);
+            } else if (zbsUnsigned) {
+                JLabel u = new JLabel("<html><i>(unsigned)</i></html>");
+                u.setAlignmentX(Component.LEFT_ALIGNMENT);
+                if (rowBg != null) {
+                    u.setOpaque(true);
+                    u.setBackground(rowBg);
+                }
+                authorCell.add(u);
             } else {
-                String authorText = (e.author != null && !e.author.trim().isEmpty()) ? e.author : "—";
+                String authorText = "?";
                 JLabel plain = new JLabel(authorText);
                 if (rowBg != null) {
                     plain.setOpaque(true);
@@ -232,6 +245,8 @@ public final class BatchJarApprovalMain {
             if (rowBg != null) {
                 trustCb.setBackground(rowBg);
             }
+            trustChecks[i] = trustCb;
+            authorGroupKey[i] = e.zbsSteamId != null ? e.zbsSteamId : "";
             grid.add(trustCb, c);
 
             boolean defaultYes = Loader.DECISION_YES.equals(e.priorHint);
@@ -246,6 +261,8 @@ public final class BatchJarApprovalMain {
             grp.add(yesB);
             grp.add(noB);
             allowYes[i] = yesB;
+            allowNo[i] = noB;
+            initialAllowYes[i] = yesB.isSelected();
 
             JPanel radios = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
             radios.setOpaque(rowBg != null);
@@ -260,7 +277,17 @@ public final class BatchJarApprovalMain {
             grid.add(radios, c);
             i++;
         }
-
+        Map<String, List<Integer>> authorGroups = new HashMap<>();
+        for (int idx = 0; idx < entries.size(); idx++) {
+            if (!trustChecks[idx].isEnabled()) {
+                continue;
+            }
+            String key = authorGroupKey[idx];
+            if (key == null || key.isEmpty()) {
+                continue;
+            }
+            authorGroups.computeIfAbsent(key, k -> new ArrayList<>()).add(idx);
+        }
         JScrollPane scroll = new JScrollPane(grid);
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.setPreferredSize(new Dimension(960, 420));
@@ -269,16 +296,73 @@ public final class BatchJarApprovalMain {
         JCheckBox savePersist = new JCheckBox(
             "Save decisions to disk (persist across game launches)", true);
         savePersist.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel trustNotice = new JLabel(
+            "<html><small><i>\"Trust author\" means all mods by that author are auto-allowed while their digital signature remains valid.</i></small></html>");
+        trustNotice.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton ok = new JButton("OK");
         JButton cancel = new JButton("Cancel");
         buttons.add(cancel);
         buttons.add(ok);
+        Runnable updateOkEnabled = () -> {
+            for (int idx = 0; idx < entries.size(); idx++) {
+                if (!allowYes[idx].isSelected() && !allowNo[idx].isSelected()) {
+                    ok.setEnabled(false);
+                    return;
+                }
+            }
+            ok.setEnabled(true);
+        };
+        for (int idx = 0; idx < entries.size(); idx++) {
+            allowYes[idx].addItemListener(ev -> updateOkEnabled.run());
+            allowNo[idx].addItemListener(ev -> updateOkEnabled.run());
+        }
+        final boolean[] syncingTrust = new boolean[] { false };
+        for (int idx = 0; idx < entries.size(); idx++) {
+            final int sourceIdx = idx;
+            trustChecks[idx].addItemListener(ev -> {
+                if (syncingTrust[0]) {
+                    return;
+                }
+                boolean selected = trustChecks[sourceIdx].isSelected();
+                String key = authorGroupKey[sourceIdx];
+                if (key == null || key.isEmpty()) {
+                    if (selected || initialAllowYes[sourceIdx]) {
+                        allowYes[sourceIdx].setSelected(true);
+                    } else {
+                        allowNo[sourceIdx].setSelected(true);
+                    }
+                    updateOkEnabled.run();
+                    return;
+                }
+                List<Integer> group = authorGroups.get(key);
+                if (group == null || group.isEmpty()) {
+                    return;
+                }
+                syncingTrust[0] = true;
+                try {
+                    for (Integer row : group) {
+                        trustChecks[row].setSelected(selected);
+                        if (selected || initialAllowYes[row]) {
+                            allowYes[row].setSelected(true);
+                        } else {
+                            allowNo[row].setSelected(true);
+                        }
+                    }
+                } finally {
+                    syncingTrust[0] = false;
+                }
+                updateOkEnabled.run();
+            });
+        }
+        updateOkEnabled.run();
 
         JPanel south = new JPanel();
         south.setLayout(new BoxLayout(south, BoxLayout.PAGE_AXIS));
         south.add(savePersist);
+        south.add(Box.createVerticalStrut(6));
+        south.add(trustNotice);
         south.add(Box.createVerticalStrut(8));
         south.add(buttons);
         root.add(south, BorderLayout.SOUTH);
@@ -308,7 +392,11 @@ public final class BatchJarApprovalMain {
                             tok = JarBatchApprovalProtocol.TOK_DENY_SESSION;
                         }
                     }
-                    out.add(new JarBatchApprovalProtocol.OutLine(e.modKey, e.sha256, tok));
+                    String trustedAuthorSteamId = "";
+                    if (persist && trustChecks[k].isSelected() && "yes".equals(e.zbsValid)) {
+                        trustedAuthorSteamId = e.zbsSteamId != null ? e.zbsSteamId : "";
+                    }
+                    out.add(new JarBatchApprovalProtocol.OutLine(e.modKey, e.sha256, tok, trustedAuthorSteamId));
                 }
                 JarBatchApprovalProtocol.writeResponse(resp, out);
                 System.exit(0);
