@@ -12,10 +12,14 @@ public record JavaModInfo(
     String jarFilePath,  // JAR file path relative to modDirectory
     String javaPkgName,  // Package name
     String zbVersionMin, // Minimum ZombieBuddy version required
-    String zbVersionMax  // Maximum ZombieBuddy version required
+    String zbVersionMax, // Maximum ZombieBuddy version required
+    /** From {@code name=} in mod.info; may be null. */
+    String displayName,
+    /** From {@code author=} in mod.info; may be null. */
+    String author
 ) {
     public JavaModInfo(File modDirectory, File modInfoFile) {
-        this(modDirectory, modInfoFile, null, null, null, null);
+        this(modDirectory, modInfoFile, null, null, null, null, null, null);
     }
     
     public boolean hasJarFile() {
@@ -35,7 +39,14 @@ public record JavaModInfo(
     /**
      * Internal record to hold parsed values from a mod.info file.
      */
-    private record ParsedValues(String jarFilePath, String javaPkgName, String zbVersionMin, String zbVersionMax) {}
+    private record ParsedValues(
+        String jarFilePath,
+        String javaPkgName,
+        String zbVersionMin,
+        String zbVersionMax,
+        String displayName,
+        String author
+    ) {}
 
     private static boolean isEmpty(String s) {
         return s == null || s.isEmpty();
@@ -85,7 +96,16 @@ public record JavaModInfo(
             Logger.error("Skipping mod due to version mismatch: " + modInfoFile + " " + versionMismatchMessage(zbVersionMin, zbVersionMax));
             return null;
         }
-        return new JavaModInfo(modDirectory, modInfoFile, jarFilePath, javaPkgName, zbVersionMin, zbVersionMax);
+        return new JavaModInfo(
+            modDirectory,
+            modInfoFile,
+            jarFilePath,
+            javaPkgName,
+            zbVersionMin,
+            zbVersionMax,
+            parsed.displayName(),
+            parsed.author()
+        );
     }
 
     /**
@@ -104,6 +124,8 @@ public record JavaModInfo(
         String javaPkgName = null;
         String zbVersionMin = null;
         String zbVersionMax = null;
+        String displayName = null;
+        String author = null;
 
         try (var reader = new java.io.BufferedReader(new java.io.FileReader(modInfoFile))) {
             String line;
@@ -138,6 +160,14 @@ public record JavaModInfo(
                     zbVersionMin = value;
                 } else if (lowerLine.startsWith("zbversionmax=")) {
                     zbVersionMax = value;
+                } else if (lowerLine.startsWith("name=")) {
+                    if (displayName == null && !value.isEmpty()) {
+                        displayName = value;
+                    }
+                } else if (lowerLine.startsWith("author=")) {
+                    if (author == null && !value.isEmpty()) {
+                        author = value;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -145,7 +175,7 @@ public record JavaModInfo(
             return null;
         }
 
-        return new ParsedValues(jarFilePath, javaPkgName, zbVersionMin, zbVersionMax);
+        return new ParsedValues(jarFilePath, javaPkgName, zbVersionMin, zbVersionMax, displayName, author);
     }
     
     /**

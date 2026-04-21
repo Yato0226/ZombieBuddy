@@ -54,10 +54,10 @@ to your Project Zomboid folder:
 [h1]⚠️ Security Warning ⚠️[/h1]
 Java mods enabled through ZombieBuddy have unrestricted access to your system. Only install mods from sources you trust.
 
-[b]No jar will sneak in.[/b] Whenever a Java mod ships a new or updated JAR, ZombieBuddy shows a native dialog with the mod id, file path, last-modified date, and SHA-256 fingerprint. Nothing is loaded until you click [b]Yes[/b]. You can choose to remember the decision (per-mod, per-hash) or keep it session-only. Decisions are stored in:
+[b]No jar will sneak in.[/b] Whenever a Java mod ships a new or updated JAR, ZombieBuddy shows a native dialog with the mod id, file path, last-modified date, and SHA-256 fingerprint. Nothing is loaded until you click [b]Yes[/b]. You can choose to remember the decision (per-mod, per-hash) or keep it session-only. Persisted allow/deny choices are written to JSON (mod id → { sha256 → true|false }) at:
 [list]
-[*] [b]Windows:[/b] %USERPROFILE%\.zombie_buddy\java_mod_approvals.txt
-[*] [b]macOS / Linux:[/b] ~/.zombie_buddy/java_mod_approvals.txt
+[*] [b]Windows:[/b] %USERPROFILE%\.zombie_buddy\java_mod_approvals.json
+[*] [b]macOS / Linux:[/b] ~/.zombie_buddy/java_mod_approvals.json
 [/list]
 If a previously-approved JAR changes on disk (hash mismatch), you will be prompted again.
 
@@ -96,7 +96,7 @@ Examples (block form, these go into Steam launch options):
     Safe to add or remove on existing saves.
 
     [*][b]I clicked the wrong button in the approval dialog. How do I reset it?[/b]
-    Open [code]java_mod_approvals.txt[/code] (path above), delete the offending [code]modId|sha256=yes|no[/code] line, and restart the game.
+    Open java_mod_approvals.json (path above), under jarDecisions find your mod id, then remove or edit the SHA-256 key you want to reset (or change true/false), save, and restart. An old java_mod_approvals.txt is removed at startup and not imported.
 
     [*][b]Can I see which Java mods were loaded or blocked?[/b]
     Yes - install [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3709229404]Zed's Better ModList[/url] and the status is shown next to each JAR path in the mod list.

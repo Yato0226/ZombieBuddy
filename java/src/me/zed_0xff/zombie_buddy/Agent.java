@@ -44,6 +44,16 @@ public class Agent {
         // can't be the first to call Loader.setPolicy().
         Loader.setPolicy(arguments.getOrDefault("policy", "prompt"));
 
+        if (arguments.containsKey("batch_approval_timeout")) {
+            try {
+                int sec = Integer.parseInt(arguments.get("batch_approval_timeout").trim());
+                Loader.g_batchApprovalTimeoutSeconds = Math.max(0, sec);
+                Logger.info("set batch_approval_timeout to " + Loader.g_batchApprovalTimeoutSeconds + "s (0 = no timeout)");
+            } catch (NumberFormatException e) {
+                Logger.error("invalid batch_approval_timeout value: " + arguments.get("batch_approval_timeout"));
+            }
+        }
+
         // Check ZB_VERBOSITY environment variable - it overrides command line value
         String envVerbosity = System.getenv("ZB_VERBOSITY");
         if (envVerbosity != null && !envVerbosity.isEmpty()) {
@@ -52,6 +62,17 @@ public class Agent {
                 Logger.info("set verbosity to " + Loader.g_verbosity + " from ZB_VERBOSITY environment variable");
             } catch (NumberFormatException e) {
                 Logger.error("invalid ZB_VERBOSITY value: " + envVerbosity);
+            }
+        }
+
+        String envBatchTimeout = System.getenv("ZB_BATCH_APPROVAL_TIMEOUT");
+        if (envBatchTimeout != null && !envBatchTimeout.isEmpty()) {
+            try {
+                Loader.g_batchApprovalTimeoutSeconds = Math.max(0, Integer.parseInt(envBatchTimeout.trim()));
+                Logger.info("set batch_approval_timeout to " + Loader.g_batchApprovalTimeoutSeconds
+                    + "s from ZB_BATCH_APPROVAL_TIMEOUT (0 = no timeout)");
+            } catch (NumberFormatException e) {
+                Logger.error("invalid ZB_BATCH_APPROVAL_TIMEOUT value: " + envBatchTimeout);
             }
         }
 
