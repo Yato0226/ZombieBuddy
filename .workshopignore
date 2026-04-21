@@ -1,11 +1,12 @@
 # see https://github.com/zed-0xff/ZBetterWorkshopUpload
-
 *.exe
 *.local
 *.rb
 *.rake
 *.xcf
 test*.jar
+
+names.yml
 Rakefile
 
 build
