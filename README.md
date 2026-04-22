@@ -14,588 +14,87 @@ ZombieBuddy is a Java agent-based framework that allows modders to:
 
 Built on top of [ByteBuddy](https://bytebuddy.net/), ZombieBuddy provides a clean, annotation-based API for intercepting and modifying game behavior without requiring access to the game's source code.
 
-## Developer / Debug helpers
-
-See [`doc/DevDebugFunctions.md`](doc/DevDebugFunctions.md) for Lua dev/debug utilities (`zbinspect`, `zbmethods`, `zbgrep`, `zbmap`, `zbgreplog`, etc.) exposed by ZombieBuddy for introspecting and manipulating game/Java objects at runtime.
-
-## ☕ Support the Project
-
-If you find ZombieBuddy useful and would like to support its development, consider buying me a coffee! Your support helps keep this project maintained and improved.
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/zed_0xff)
-
 ### Why ZombieBuddy?
 
-Previously, Java mods for Project Zomboid required bundling `.class` files and manually replacing game files to work. ZombieBuddy makes this process much better:
+Previously, Java mods for Project Zomboid required bundling `.class` files and manually replacing game files. ZombieBuddy makes this better:
 
-1. **No manual file replacement**: ZombieBuddy automatically loads and applies patches at runtime - no need to manually copy `.class` files into the game's installation directory.
-
-2. **Precise patching**: Instead of replacing entire class files, you can patch specific methods with surgical precision. This means:
-   - Multiple mods can patch the same class without conflicts
-   - Updates to the game are less likely to break your mod
-   - You only modify what you need, leaving the rest of the class intact
+1. **No manual file replacement**: Automatically loads and applies patches at runtime
+2. **Precise patching**: Patch specific methods with surgical precision - multiple mods can patch the same class without conflicts, and game updates are less likely to break your mod
 
 ## Features
 
 - 🎯 **Annotation-based patching**: Use `@Patch` annotations to declare method patches
 - 🔄 **Runtime class transformation**: Patch classes that are already loaded using retransformation
 - 📦 **Automatic patch discovery**: Scans for patch classes automatically
-- 🔗 **Lua integration**: Expose Java classes and global functions to Lua via annotations (`@Exposer.LuaClass`, `@LuaMethod(global = true)`) or the Exposer API; built-in `ZombieBuddy.Events` for inspecting game event hooks, and `ZombieBuddy.Watches` (experimental) for hooking any Java method and logging calls
+- 🔗 **Lua integration**: Expose Java classes and global functions to Lua
 - ⚡ **Advice and Method Delegation**: Support for both advice-based and delegation-based patching
 - 🔍 **Verbose logging**: Configurable verbosity levels for debugging
 
-## Installation
+## Quick Start
 
 ### For End Users
 
-> **⚠️ SECURITY WARNING**: Unlike Lua mods which run in a sandboxed environment, **Java mods are completely unrestricted** and can execute any code with full system permissions. By installing ZombieBuddy and enabling Java mods, you are granting them the ability to:
-> - Access and modify any game files or data
-> - Access your file system outside the game directory
-> - Perform network operations
-> - Execute any Java code without restrictions
->
-> **Only install and enable Java mods from sources you trust completely.** Review the source code if available, and be aware that malicious Java mods could potentially harm your system or compromise your data. You install and use Java mods at your own risk.
->
-> To mitigate this, ZombieBuddy will **prompt you before loading any new or changed Java mod JAR** (see [Java Mod Approval & Policy](#-java-mod-approval--policy) below). No JAR is loaded until you explicitly approve it.
+1. **Windows**: Download and run [ZombieBuddyInstaller.exe](https://github.com/zed-0xff/ZombieBuddy/releases/)
+2. **macOS/Linux**: Copy `ZombieBuddy.jar` to the game directory and add `-javaagent:ZombieBuddy.jar --` to launch options
 
-#### 🔒 Java Mod Approval & Policy
-
-**No JAR will sneak in.** When ZombieBuddy sees a Java mod JAR it hasn't seen before (or a previously-approved JAR whose contents changed), it shows a native dialog with:
-
-- The mod id
-- The full path to the JAR
-- The file's last-modified date
-- The JAR's SHA-256 fingerprint
-
-Nothing is loaded until you click **Yes**. A second dialog asks whether the decision should be **persisted** across game runs or kept **session-only**. Negative answers (deny) can be persisted too, so a mod you explicitly rejected never re-prompts you.
-
-**Where decisions are stored:**
-
-- **Windows:** `%USERPROFILE%\.zombie_buddy\java_mod_approvals.json`
-- **macOS / Linux:** `~/.zombie_buddy/java_mod_approvals.json`
-
-The file is JSON (with room for future top-level fields). Persisted allow/deny pairs live under `jarDecisions` as a nested object: each **mod id** maps to an object of **SHA-256 hex → JSON boolean** (`true` = allow, `false` = deny). A leftover `java_mod_approvals.txt` from older builds is deleted at startup without being imported. To revoke a decision, edit or remove the matching mod/hash under `jarDecisions` and restart the game.
-
-**Policy modes** (pass as a `policy=...` agent argument):
-
-| Value        | Behavior                                                                                 |
-|--------------|------------------------------------------------------------------------------------------|
-| `prompt`     | (default) Ask via a native dialog for each unknown/changed JAR.                          |
-| `deny-new`   | Silently skip any JAR that isn't already approved. No dialogs are shown.                 |
-| `allow-all`  | Load every JAR without prompting. **Not recommended** - use only in controlled setups.   |
-
-Example launch options:
-
-- Windows: `-agentlib:zbNative=policy=deny-new --`
-- macOS / Linux: `-javaagent:ZombieBuddy.jar=policy=deny-new --`
-
-The policy is locked during `premain`, before any Java mod is on the classpath, so a later-loading Java mod cannot call `Loader.setPolicy("allow-all")` to relax it at runtime.
-
-#### 🪟 Windows (Automated Installer)
-
-The easiest way to install ZombieBuddy on Windows is using the automated installer:
-
-1. **Download the latest `ZombieBuddyInstaller.exe`** from the [GitHub Releases](https://github.com/zed-0xff/ZombieBuddy/releases/) page.
-2. **Run the installer**. It will automatically:
-   - Detect your Steam and Project Zomboid installation folders.
-   - Find the ZombieBuddy Workshop content (ensure you are [subscribed on Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=3619862853)).
-   - Copy `zbNative.dll` and `ZombieBuddy.jar` to your game directory.
-   - Update your Steam launch options to include `-agentlib:zbNative --`.
-3. **Restart Steam** for the changes to take effect.
-
-> **Note**: The installer handles everything for you. You don't need to manually copy files or edit launch options.
-
-#### 🐧 macOS and Linux (Manual Installation)
-
-ZombieBuddy requires manual installation on these platforms as it runs as a Java agent. Follow the steps in the **Manual Installation** section below.
-
-#### 🛠️ Manual Installation (Fallback for Windows)
-
-If you prefer to install manually on Windows, or are on macOS/Linux, follow these steps:
-
-1. **Download the mod** from the Steam Workshop or GitHub releases
-
-2. **Extract the mod** to your Project Zomboid mods directory:
-   - **Windows**: `%USERPROFILE%\Zomboid\mods\ZombieBuddy\`
-   - **Linux/Mac**: `~/Zomboid/mods/ZombieBuddy/`
-
-3. **Copy files to the game directory**:
-   
-   **macOS and Linux**:
-   - Copy `ZombieBuddy.jar` from the mod's `build/libs/` directory to:
-     - **macOS**: `~/Library/Application Support/Steam/steamapps/common/ProjectZomboid/Project Zomboid.app/Contents/Java/`
-     - **Linux**: The equivalent Java directory in your Steam installation (typically `~/.steam/steam/steamapps/common/ProjectZomboid/projectzomboid/`)
-   
-   **Windows**:
-   - Copy **both** `ZombieBuddy.jar` and `zbNative.dll` from the mod's `build/libs/` directory to the game directory:
-     - Typically: `C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid\`
-     - Or wherever your Steam installation is located
-   
-   > **Note**: On Windows, `zbNative.dll` is required because the JRE hardcodes the path to `jre64\bin\instrument.dll`, which depends on `java.dll` and `jli.dll` that are not on the DLL load path. The native loader adds `jre64\bin` to the DLL load path and then proxies calls to `instrument.dll`. Source code for `zbNative.dll` is provided in the repository.
-
-### Why is zbNative.dll needed on Windows?
-
-On Windows, when using `-javaagent:ZombieBuddy.jar`, the JRE attempts to load `jre64\bin\instrument.dll` (the path is hardcoded in the JRE). However, this DLL depends on `java.dll` and `jli.dll`, which are also located in `jre64\bin` but are not on the DLL load path. This causes the loading of `instrument.dll` to fail.
-
-The solution is `zbNative.dll`, a native library that:
-1. Adds `jre64\bin` to the DLL load path
-2. Proxies calls to `instrument.dll`
-3. Automatically loads `ZombieBuddy.jar` as a Java agent
-4. **Handles automatic updates**: On startup, `zbNative.dll` checks if `ZombieBuddy.jar.new` exists (created when a newer version is detected via Steam mod update but the JAR couldn't be replaced during runtime). If found, it automatically replaces `ZombieBuddy.jar` with the new version before loading it.
-
-This is why Windows users must:
-- Copy both `ZombieBuddy.jar` and `zbNative.dll` to the game directory
-- Use only `-agentlib:zbNative --` in launch options (it automatically loads `ZombieBuddy.jar`)
-
-On macOS and Linux, this workaround is not needed, so only `ZombieBuddy.jar` is required and you use `-javaagent:ZombieBuddy.jar --` directly.
-
-4. **Modify game launch options**:
-   - Open Steam and go to Project Zomboid properties
-   - Navigate to "Launch Options" or "Set Launch Options"
-   - Add one of the following (see screenshot below):
-   
-   **macOS and Linux**:
-     ```
-     -javaagent:ZombieBuddy.jar --
-     ```
-     Or with verbosity for debugging (shows patch transformations):
-     ```
-     -javaagent:ZombieBuddy.jar=verbosity=1 --
-     ```
-     Or with maximum verbosity (shows all debug output):
-     ```
-     -javaagent:ZombieBuddy.jar=verbosity=2 --
-     ```
-   
-   **Windows**:
-     ```
-     -agentlib:zbNative --
-     ```
-     Or with verbosity for debugging:
-     ```
-     -agentlib:zbNative=verbosity=1 --
-     ```
-     Or with maximum verbosity:
-     ```
-     -agentlib:zbNative=verbosity=2 --
-     ```
-     > **Note**: `zbNative.dll` automatically loads `ZombieBuddy.jar` as a Java agent, so you don't need to specify `-javaagent:ZombieBuddy.jar` separately.
-   
-   - **⚠️ IMPORTANT**: The `--` at the end is **mandatory** - do not omit it!
-   - **Windows users**: Only `-agentlib:zbNative --` is required (it automatically loads `ZombieBuddy.jar`)
-   - **Verbosity levels**:
-     - `verbosity=0` (default): Errors only
-     - `verbosity=1`: Shows patch transformations
-     - `verbosity=2`: Shows all debug output
-
-5. **Enable the mod** in the Project Zomboid mod manager (if you want to use mods that depend on ZombieBuddy)
-
-6. **Launch the game** - ZombieBuddy will load automatically as a Java agent
-
-7. **Verify installation**: You can confirm ZombieBuddy is working by checking:
-   - **Game version string**: Look for `[ZB]` appended to the game version (e.g., "Build 42.30.16 [ZB]")
-   - **Loading screen**: The ZombieBuddy version (e.g., "ZB 1.0.2") appears at the bottom right corner during game loading
-   - **Main menu**: The ZombieBuddy version is visible at the bottom right corner of the main menu screen
-
-**Steam Launch Options Configuration:**
-
-![Steam Launch Options](cmdline.png)
+📖 **[Full Installation Guide](doc/Installation.md)** - Security warnings, manual installation, policy modes
 
 ### For Modders
 
-ZombieBuddy enables you to create Java mods that can patch game classes and expose Java functionality to Lua. Here's how to build a Java mod:
-
-#### 1. Set Up Your Mod Structure
-
-Create a standard Project Zomboid mod structure:
-```
-YourMod/
-├── [version]/
-│   ├── mod.info
-│   └── media/
-│       └── java/
-│           └── YourMod.jar
-└── common/
-```
-
-#### 2. Configure mod.info
-
-Add the following entries to your `mod.info` file:
-
-```ini
-require=\ZombieBuddy
-javaJarFile=media/java/YourMod.jar
-javaPkgName=com.yourname.yourmod
-ZBVersionMin=1.0.0
-ZBVersionMax=1.5.0
-```
-
-- `require=\ZombieBuddy`: Declares dependency on ZombieBuddy framework
-- `javaJarFile`: Path to your JAR file relative to the mod version directory. **Required** if you want to load Java code. **Note**: Only a single JAR file is supported per mod. Classes must be packaged in a JAR file - plain class directories are not supported. **Client/server filtering**: If the path contains `media/java/client/`, the mod is treated as client-only and is skipped when running a dedicated server. If the path contains `media/java/server/`, the mod is treated as server-only and is skipped when running the game client. Use paths like `media/java/YourMod.jar` for code that runs on both.
-- `javaPkgName`: The package name where your Main class is located (if present) and where patches will be discovered. **Mandatory** if `javaJarFile` is specified. The Main class (if present) must be named `Main` and located in this package (e.g., if `javaPkgName=com.yourname.yourmod`, the Main class must be `com.yourname.yourmod.Main`). The JAR file must contain this package. **Note**: The Main class is optional - if you only have patches and no initialization code, you can omit it. ZombieBuddy will still apply patches from the package.
-- `ZBVersionMin` (Optional): Minimum ZombieBuddy version required (inclusive).
-- `ZBVersionMax` (Optional): Maximum ZombieBuddy version required (inclusive).
-
-**Client/server JAR paths**
-
-ZombieBuddy skips loading a Java mod when the environment and JAR path don't match:
-- **On a dedicated server**: mods whose `javaJarFile` path contains `media/java/client/` are skipped (client-only).
-- **On the game client**: mods whose `javaJarFile` path contains `media/java/server/` are skipped (server-only).
-
-Use a path that does not contain `client/` or `server/` (e.g. `media/java/YourMod.jar`) for code that runs on both client and server.
-
-**Important**: 
-- `javaPkgName` is **mandatory** when `javaJarFile` is specified
-- The Main class is always named `Main` (if present)
-- The Main class is **optional** - patches will be applied even if Main class doesn't exist
-- The JAR file must contain the package specified in `javaPkgName`
-- Only one `javaJarFile` and one `javaPkgName` entry per mod (multiple entries are not supported)
-
-#### 3. Create Your Java Project
-
-Set up a Gradle project with the following dependencies:
-
-```gradle
-dependencies {
-    // ZombieBuddy API (compile-only, provided at runtime)
-    compileOnly files("path/to/ZombieBuddy.jar")
-    
-    // Project Zomboid classes (compile-only)
-    compileOnly files("path/to/ProjectZomboid/Contents/Java")
-}
-```
-
-#### 4. Write Your Mod Code
-
-**Option A: With Main class** (for initialization code)
-
-Create a Main class in the package specified by `javaPkgName`. The `main(String[])` method is optional - if it exists, it will be automatically executed when the mod loads:
-
-```java
-package com.yourname.yourmod;
-
-public class Main {
-    // Optional: main() method will be executed if present
-    public static void main(String[] args) {
-        System.out.println("[YourMod] Initializing...");
-        
-        // Your initialization code here
-        // You can create patches, expose classes to Lua, etc.
-    }
-}
-```
-
-**Option B: Patches-only mod** (no Main class required)
-
-If your mod only contains patches and doesn't need any initialization code, you can omit the Main class entirely. ZombieBuddy will automatically discover and apply all `@Patch` annotated classes in the package specified by `javaPkgName`.
-
-**Important**: 
-- The Main class is **optional** - if present, it must be named `Main` and be in the package specified by `javaPkgName` in `mod.info`
-- Even without a Main class, any `@Patch` annotated classes in the package will be discovered and applied automatically
-
-#### 5. Create Patches
-
-```java
-package com.yourname.yourmod.patches;
-
-import me.zed_0xff.zombie_buddy.Patch;
-
-@Patch(className = "zombie.SomeGameClass", methodName = "someMethod", warmUp = true)
-public static class MyPatch {
-    @Patch.OnEnter
-    public static void enter() {
-        System.out.println("[YourMod] Intercepted method call!");
-    }
-    
-    @Patch.OnExit
-    public static void exit() {
-        System.out.println("[YourMod] Method finished!");
-    }
-}
-```
-
-#### Skipping the Original Method
-
-You can skip the execution of the original method by using `skipOn = true` in `@Patch.OnEnter`. When `skipOn = true`, the advice method must return a `boolean`. If it returns `true`, the original method is skipped.
-
-```java
-@Patch(className = "zombie.SomeClass", methodName = "someMethod")
-public static class SkipExample {
-    @Patch.OnEnter(skipOn = true)
-    public static boolean enter() {
-        if (shouldSkip) {
-            return true; // Original method will NOT be executed
-        }
-        return false; // Original method will proceed normally
-    }
-}
-```
-
-**Important**: 
-- The advice method must return a primitive `boolean`.
-- If skipped, the original method returns its default value (e.g., `0` for `int`, `null` for objects).
-
-**Important**: 
-- Place patch classes in the same package as your Main class (specified by `javaPkgName`). ZombieBuddy will automatically discover and apply all `@Patch` annotated classes in that package.
-
-#### 6. Expose Classes and Functions to Lua
-
-You can expose Java to Lua in two ways: **annotation-based** (recommended, discovered automatically) or **manual** (call Exposer from your code).
-
-**Annotation-based (recommended)**
-
-- **Full class exposure**: Annotate a class with `@Exposer.LuaClass`. The loader discovers it in your package (same scan as `@Patch` classes) and registers it with the game’s Lua engine so the class and its instance methods are available in Lua.
-
-  ```java
-  import me.zed_0xff.zombie_buddy.Exposer;
-
-  @Exposer.LuaClass
-  public class MyLuaApi {
-      public String greet(String who) {
-          return "Hello, " + who;
-      }
-  }
-  ```
-
-- **Global Lua functions only**: Add `@LuaMethod(name = "luaName", global = true)` to **static** methods. The loader discovers any class in your package that has at least one such method and exposes those methods as global Lua functions. The class does **not** need `@Exposer.LuaClass`.
-
-  ```java
-  import se.krka.kahlua.integration.annotations.LuaMethod;
-
-  public class MyGlobals {
-      @LuaMethod(name = "myGlobalFunc", global = true)
-      public static String myGlobalFunc(String arg) {
-          return "got: " + arg;
-      }
-  }
-  ```
-
-  In Lua you can then call `myGlobalFunc("foo")`. A no-arg constructor is used to create the instance passed to the game’s exposer; use static methods if you don’t need instance state.
-
-**Manual API**
-
-If you need to expose a class at runtime (e.g. from Main or a patch):
-
-```java
-import me.zed_0xff.zombie_buddy.Exposer;
-
-// In your initialization code
-Exposer.exposeClassToLua(MyCustomClass.class);
-```
-
-#### ZombieBuddy.Events (Built-in Lua API)
-
-ZombieBuddy provides a built-in Lua API for inspecting game event hooks. Access it as `ZombieBuddy.Events`.
-
-| Method | Description |
-|--------|-------------|
-| `getAll()` | Returns a table mapping event names to their callback lists. |
-| `getByName(eventName)` | Returns the list of callbacks for the given event (e.g. `"OnCreatePlayer"`). |
-| `getByFile(filename)` | Returns a table of events that have callbacks from the given Lua file. Each event name maps to a 1-based array of those callbacks. |
-| `EventName` (index) | Access event callbacks by name: `ZombieBuddy.Events.OnCreatePlayer` returns the same as `getByName("OnCreatePlayer")`. |
-
-Related helpers on `ZombieBuddy`:
-
-| Method | Description |
-|--------|-------------|
-| `getClosureFilename(closure)` | Returns the source filename for a callback (LuaClosure). |
-| `getClosureInfo(closure)` | Returns a table with `file`, `filename`, `name`, and `line` for a callback. |
-
-**Example:**
-
-```lua
--- Get all events
-local all = ZombieBuddy.Events.getAll()
-
--- Get callbacks for a specific event
-local callbacks = ZombieBuddy.Events.getByName("OnCreatePlayer")
--- Or equivalently (via __index):
-local callbacks = ZombieBuddy.Events.OnCreatePlayer
-
--- Get events/callbacks from a specific file
-local byFile = ZombieBuddy.Events.getByFile("/path/to/SomeMod.lua")
--- byFile.OnFillWorldObjectContextMenu[1] is the first callback from that file
-
--- Inspect a callback's source
-local info = ZombieBuddy.getClosureInfo(callbacks[1])
-print(info.filename, info.line)  -- e.g. "media/lua/client/SomeMod.lua", 42
-```
-
-#### Java Mod Status (Lua API)
-
-ZombieBuddy exposes the current loader policy and per-mod load status to Lua, so other mods (e.g. [ZBetterModList](https://github.com/zed-0xff/ZBetterModList)) can display what was allowed, blocked, or remembered.
-
-| Method | Description |
-|--------|-------------|
-| `ZombieBuddy.getPolicy()` | Returns the active policy as a string: `"prompt"`, `"deny-new"`, or `"allow-all"`. |
-| `ZombieBuddy.getJavaModStatus(modId)` | Returns a table for the given mod id, or `nil` if ZombieBuddy didn't consider a JAR for it. |
-
-The status table has these fields:
-
-| Field       | Type    | Meaning |
-|-------------|---------|---------|
-| `loaded`    | boolean | `true` if the JAR was actually loaded this run. |
-| `reason`    | string  | `"loaded"` or a short skip reason (e.g. `"blocked by policy=deny-new"`). |
-| `sha256`    | string  | Hex SHA-256 of the JAR, or `nil` if there was no JAR. |
-| `decision`  | string  | `"yes"`, `"no"`, or `nil` if no decision was recorded. |
-| `persisted` | boolean | `true` if the decision came from the on-disk approvals file (vs session-only). |
-
-**Example:**
-
-```lua
-local status = ZombieBuddy.getJavaModStatus("SomeJavaMod")
-if status then
-    if status.loaded then
-        print("loaded, decision=" .. tostring(status.decision) .. ", persisted=" .. tostring(status.persisted))
-    else
-        print("blocked: " .. status.reason)
-    end
-end
-```
-
-#### ZombieBuddy.Watches (Experimental)
-
-Hook any Java method and log its calls and arguments. Access it as `ZombieBuddy.Watches`.
-
-| Method | Description |
-|--------|-------------|
-| `Add(className, methodName)` | Add a watch. Every call to the method is logged with its arguments. |
-| `Remove(className, methodName)` | Remove a watch. |
-| `Clear()` | Remove all watches. |
-
-**Example:**
-
-```lua
--- Watch a game method
-ZombieBuddy.Watches.Add("zombie.iso.IsoPlayer", "addBlood")
-ZombieBuddy.Watches.Add("zombie.Lua.LuaManager", "RunLua")
-
--- Logs appear in the game console: [ZB Watch] zombie.iso.IsoPlayer.addBlood(...)
--- Remove when done
-ZombieBuddy.Watches.Remove("zombie.iso.IsoPlayer", "addBlood")
-ZombieBuddy.Watches.Clear()
-```
-
-> **Note**: The class must be loaded for the watch to apply. If the class is not yet loaded, the watch is registered and will apply on first load.
-
-#### 7. Build Your Mod
-
-Build your JAR file and place it in the location specified in `mod.info`:
-
-```bash
-gradle build
-cp build/libs/YourMod.jar ~/Zomboid/mods/YourMod/[version]/media/java/
-```
-
-#### 8. Testing
-
-1. Ensure ZombieBuddy is installed and configured (see "For End Users" above)
-2. Enable your mod in the Project Zomboid mod manager
-3. Launch the game and check the console for your mod's output
-4. Use `-javaagent:ZombieBuddy.jar=verbosity=2 --` in launch options for detailed patch logging
-
-#### Tips
-
-- **Package naming**: Use a unique package name to avoid conflicts (e.g., `com.yourname.yourmod`)
-- **Warm-up classes**: Some game classes need to be "warmed up" before patching. Set `warmUp = true` in your `@Patch` annotation
-- **Advice vs Delegation**: Use `isAdvice = true` (default) for intercepting methods. Use `isAdvice = false` for complete method replacement (only one delegation per method)
-- **Retransformation**: Patches can be applied to already-loaded classes, but MethodDelegation patches work best on classes that haven't loaded yet
-
-#### Example Mods
-
-Looking for examples to learn from? Check out these mods built with ZombieBuddy:
-
-- **[ZBLuaPerfMon](https://github.com/zed-0xff/ZBLuaPerfMon)**: A real-time Lua performance monitor and On-Screen Display (OSD). Demonstrates high-precision timing and core game engine patching.
-- **[ZBHelloWorld](https://github.com/zed-0xff/ZBHelloWorld)**: A simple example mod demonstrating how to patch UI rendering methods. Shows the basic structure with `javaPkgName` and a Main class.
-- **[ZBetterWorkshopUpload](https://github.com/zed-0xff/ZBetterWorkshopUpload)**: A practical mod demonstrating workshop integration, Lua exposure, and complex patching. Filters unwanted files from Steam Workshop uploads and provides upload previews.
-- **[ZBMacOSHideMenuBar](https://github.com/zed-0xff/ZBMacOSHideMenuBar)**: Fixes the macOS menu bar issue in borderless windowed mode. Demonstrates display patching and macOS-specific functionality.
-- **[ZBBetterFPS](https://github.com/zed-0xff/ZBBetterFPS)**: Optimizes FPS by reducing render distance. Demonstrates runtime configuration and render engine patching.
-- **[ZItemTiers](https://github.com/zed-0xff/ZItemTiers)**: Probability-based item rarity (Common → Legendary) with stat bonuses; optional ZombieBuddy for weapon weight and other Java patches.
-
-#### Sharing Your Source Code
-
-We strongly encourage modders to share their source code with the community! This helps others learn, contribute, and maintain mods when you're unavailable. Here are two great options:
-
-1. **Bundle source with your mod**: Include a `src/` directory in your mod distribution containing your Java source files. This makes it easy for users to inspect and understand your mod's implementation.
-
-2. **Share on GitHub**: Create a public GitHub repository for your mod. This enables:
-   - Version control and issue tracking
-   - Community contributions via pull requests
-   - Easy collaboration with other modders
-   - Better discoverability and documentation
-
-Example mod structure with source:
-```
-YourMod/
-├── [version]/
-│   ├── mod.info
-│   ├── media/
-│   │   └── java/
-│   │       └── YourMod.jar
-│   └── src/              # Optional: include source code
-│       └── com/
-│           └── yourname/
-│               └── yourmod/
-└── common/
-```
-
-Open source mods benefit the entire Project Zomboid modding community by enabling learning, collaboration, and long-term maintenance!
-
-## How It Works
-
-ZombieBuddy operates as a Java agent that:
-
-1. **Loads at game startup** via the Java Instrumentation API
-2. **Scans for patch classes** annotated with `@Patch`
-3. **Applies bytecode transformations** using ByteBuddy
-4. **Supports both new and already-loaded classes** through retransformation
-
-### Creating a Patch
+1. Add `require=\ZombieBuddy`, `javaJarFile`, and `javaPkgName` to your `mod.info`
+2. Create patches using `@Patch` annotations
+3. Build your JAR and place it in `media/java/`
+
+📖 **[Modding Guide](doc/ModdingGuide.md)** - Complete guide to creating Java mods
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Installation Guide](doc/Installation.md) | End-user installation, security, and policy configuration |
+| [Command-Line Parameters](doc/CommandLine.md) | All agent parameters: verbosity, policy, experimental, etc. |
+| [Modding Guide](doc/ModdingGuide.md) | Creating patches, Lua exposure, mod signing, examples |
+| [Lua API Reference](doc/LuaAPI.md) | Events, Watches, and Java mod status APIs |
+| [Dev/Debug Functions](doc/DevDebugFunctions.md) | Lua utilities: `zbinspect`, `zbmethods`, `zbgrep`, `zbmap`, etc. |
+
+## Example: Creating a Patch
 
 ```java
 import me.zed_0xff.zombie_buddy.Patch;
 
-@Patch(className = "zombie.SomeGameClass", methodName = "someMethod", warmUp = true)
+@Patch(className = "zombie.SomeGameClass", methodName = "someMethod")
 public static class MyPatch {
     @Patch.OnEnter
     public static void enter() {
         System.out.println("Method called!");
     }
-    
-    @Patch.OnExit
-    public static void exit() {
-        System.out.println("Method finished!");
-    }
 }
 ```
 
-You can also skip the original method execution:
+## Example Mods
 
-```java
-@Patch(className = "zombie.SomeClass", methodName = "someMethod")
-public static class MySkipPatch {
-    @Patch.OnEnter(skipOn = true)
-    public static boolean enter() {
-        return true; // Skip original method
-    }
-}
-```
-
-### Exposing Classes and Functions to Lua
-
-- **Full class**: Add `@Exposer.LuaClass` on the class. It is discovered in your mod package and registered with Lua (class + instance methods).
-- **Global functions only**: Add `@LuaMethod(name = "luaName", global = true)` on static methods. Any class in your package with at least one such method gets those methods exposed as Lua globals; no `@Exposer.LuaClass` needed.
-- **Manual**: Call `Exposer.exposeClassToLua(MyCustomClass.class)` from your Main or patch code when you need to register a class at runtime.
+- **[ZBLuaPerfMon](https://github.com/zed-0xff/ZBLuaPerfMon)** - Real-time Lua performance monitoring
+- **[ZBHelloWorld](https://github.com/zed-0xff/ZBHelloWorld)** - Simple example demonstrating basic patching
+- **[ZBetterWorkshopUpload](https://github.com/zed-0xff/ZBetterWorkshopUpload)** - Workshop integration and Lua exposure
+- **[ZBMacOSHideMenuBar](https://github.com/zed-0xff/ZBMacOSHideMenuBar)** - macOS display patching
+- **[ZBBetterFPS](https://github.com/zed-0xff/ZBBetterFPS)** - Render engine optimization
+- **[ZItemTiers](https://github.com/zed-0xff/ZItemTiers)** - Item rarity with optional Java patches
 
 ## Requirements
 
-- **Project Zomboid** (latest version)
+- **Project Zomboid** (Build 42+)
 - **Java 17** (required by the game)
 - **Gradle** (for building Java mods)
 
+## ☕ Support the Project
+
+If you find ZombieBuddy useful, consider supporting its development:
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/zed_0xff)
+
 ## License
 
-Copyright (c) 2025 Andrey "Zed" Zaikin
+Copyright (c) 2025-2026 Andrey "Zed" Zaikin
 
 This project is licensed under a permissive open-source license. See [LICENSE.txt](LICENSE.txt) for details.
 
@@ -605,20 +104,10 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## Links
 
-- **GitHub Repository**: https://github.com/zed-0xff/ZombieBuddy
-- **Related Projects**:
-  - [ZBSpec](https://github.com/zed-0xff/ZBSpec) - Testing framework for PZ mods (uses ZombieBuddy's Lua API)
-  - [ZScienceSkill](https://github.com/zed-0xff/ZScienceSkill) - Adds a Science skill to PZ (example of a Lua mod with ZBSpec tests)
-- **Example Mods**:
-  - [ZBLuaPerfMon](https://github.com/zed-0xff/ZBLuaPerfMon) - Real-time Lua performance monitoring and OSD
-  - [ZBHelloWorld](https://github.com/zed-0xff/ZBHelloWorld) - A simple example mod demonstrating patches-only mods
-  - [ZBetterWorkshopUpload](https://github.com/zed-0xff/ZBetterWorkshopUpload) - A practical mod demonstrating workshop integration, Lua exposure, and complex patching
-  - [ZBMacOSHideMenuBar](https://github.com/zed-0xff/ZBMacOSHideMenuBar) - Fixes macOS menu bar issue in borderless windowed mode
-  - [ZBBetterFPS](https://github.com/zed-0xff/ZBBetterFPS) - Optimizes FPS by reducing render distance
-  - [ZItemTiers](https://github.com/zed-0xff/ZItemTiers) - Probability-based item rarity with stat bonuses; optional ZombieBuddy for Java patches
-- **Author**: zed-0xff
+- **GitHub**: https://github.com/zed-0xff/ZombieBuddy
+- **Steam Workshop**: https://steamcommunity.com/sharedfiles/filedetails/?id=3619862853
+- **Related**: [ZBSpec](https://github.com/zed-0xff/ZBSpec) - Testing framework for PZ mods
 
 ## Disclaimer
 
-This mod uses bytecode manipulation to modify game behavior. **Java mods enabled through ZombieBuddy have unrestricted access to your system and can execute arbitrary code.** Use at your own risk. Always backup your save files before using mods that modify core game functionality. Only install Java mods from trusted sources and review their source code when available.
-
+This mod uses bytecode manipulation to modify game behavior. **Java mods enabled through ZombieBuddy have unrestricted access to your system and can execute arbitrary code.** Use at your own risk. Only install Java mods from trusted sources and review their source code when available.

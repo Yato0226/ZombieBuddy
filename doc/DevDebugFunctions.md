@@ -1,6 +1,8 @@
-# ZombieBuddy dev/debug functions
+# ZombieBuddy Dev/Debug Functions
 
-Global Lua helpers exposed by the ZombieBuddy experimental patches for inspecting and manipulating Java/Lua objects. Use from the in-game Lua console or from mod scripts.
+Global Lua helpers exposed by ZombieBuddy for inspecting and manipulating Java/Lua objects. Use from the in-game Lua console or from mod scripts.
+
+For other Lua APIs (Events, Watches, Status), see [LuaAPI.md](LuaAPI.md).
 
 ---
 
