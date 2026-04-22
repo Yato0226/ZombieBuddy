@@ -27,6 +27,7 @@ public final class ConsoleJavaModApprovalFrontend implements JavaModApprovalFron
             System.out.println("---");
             System.out.println("Mod key:   " + e.modKey);
             System.out.println("Mod id:    " + e.modId);
+            System.out.println("Workshop:  " + (e.workshopItemId != null ? e.workshopItemId.value() : "(none)"));
             System.out.println("JAR:       " + e.jarAbsolutePath);
             System.out.println("SHA-256:   " + e.sha256);
             System.out.println("Updated:   " + e.modifiedHuman);
@@ -55,7 +56,7 @@ public final class ConsoleJavaModApprovalFrontend implements JavaModApprovalFron
                     tok = JarBatchApprovalProtocol.TOK_DENY_SESSION;
                 }
             }
-            out.add(new JarBatchApprovalProtocol.OutLine(e.modKey, e.sha256, tok));
+            out.add(new JarBatchApprovalProtocol.OutLine(e.modKey, e.workshopItemId, e.sha256, tok));
         }
         Loader.applyBatchApprovalLines(out, disk);
     }

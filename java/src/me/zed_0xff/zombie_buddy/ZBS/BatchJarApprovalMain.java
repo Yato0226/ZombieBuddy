@@ -208,7 +208,7 @@ public final class BatchJarApprovalMain {
             c.gridx = COL_MOD;
             c.weightx = W_MOD_ROW;
             c.fill = GridBagConstraints.BOTH;
-            String workshopItemId = workshopItemIdForEntry(e);
+            String workshopItemId = e.workshopItemId != null ? Long.toString(e.workshopItemId.value()) : null;
             JLabel nameLab;
             if (workshopItemId != null) {
                 String workshopUrl = workshopItemUrl(workshopItemId);
@@ -469,7 +469,13 @@ public final class BatchJarApprovalMain {
                     if (persist && trustChecks[k].isSelected() && "yes".equals(e.zbsValid)) {
                         trustedAuthorSteamId = e.zbsSteamId != null ? e.zbsSteamId.value() : "";
                     }
-                    out.add(new JarBatchApprovalProtocol.OutLine(e.modKey, e.sha256, tok, trustedAuthorSteamId));
+                    out.add(new JarBatchApprovalProtocol.OutLine(
+                        e.modKey,
+                        e.workshopItemId,
+                        e.sha256,
+                        tok,
+                        trustedAuthorSteamId
+                    ));
                 }
                 JarBatchApprovalProtocol.writeResponse(resp, out);
                 System.exit(0);
@@ -483,38 +489,6 @@ public final class BatchJarApprovalMain {
         frame.pack();
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
-    }
-
-    private static String workshopItemIdForEntry(JarBatchApprovalProtocol.Entry e) {
-        if (e == null) {
-            return null;
-        }
-        String byKey = normalizeWorkshopItemId(e.modKey);
-        if (byKey != null) {
-            return byKey;
-        }
-        return normalizeWorkshopItemId(e.modId);
-    }
-
-    private static String normalizeWorkshopItemId(String value) {
-        if (value == null) {
-            return null;
-        }
-        String s = value.trim();
-        if (s.isEmpty()) {
-            return null;
-        }
-        for (int i = 0; i < s.length(); i++) {
-            if (!Character.isDigit(s.charAt(i))) {
-                return null;
-            }
-        }
-        try {
-            long parsed = Long.parseLong(s);
-            return parsed > 0 ? Long.toString(parsed) : null;
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
     }
 
     private static String workshopItemUrl(String workshopItemId) {

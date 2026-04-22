@@ -25,7 +25,7 @@ import mjson.Json;
  *   "jarDecisionsByWorkshopItem": {
  *     "WorkshopItemID": {
  *       "mod_ids": [ "..." ],
- *       "hashes": { "sha256hex": true | false },
+ *       "decisions": { "sha256hex": true | false },
  *       "author": { "id": "...", "name": "..." }
  *     }
  *   },
@@ -50,7 +50,7 @@ public final class JavaModApprovalsStore {
     private static final String KEY_FORMAT_VERSION = "formatVersion";
     private static final String KEY_JAR_DECISIONS = "jarDecisionsByWorkshopItem";
     private static final String KEY_AUTHORS = "authors";
-    private static final String KEY_HASHES = "hashes";
+    private static final String KEY_DECISIONS = "decisions";
     private static final String KEY_MOD_IDS = "mod_ids";
     private static final String KEY_AUTHOR = "author";
     private static final String KEY_ID = "id";
@@ -276,6 +276,9 @@ public final class JavaModApprovalsStore {
         Json jarDecisions = Json.object();
         if (table == null) return jarDecisions;
         for (String workshopItemId : table.modIds()) {
+            if (!isWorkshopItemIdKey(workshopItemId)) {
+                continue;
+            }
             Json hashes = Json.object();
             for (Map.Entry<String, String> e : table.hashesOf(workshopItemId).entrySet()) {
                 String v = e.getValue();
@@ -296,7 +299,7 @@ public final class JavaModApprovalsStore {
                 }
             }
             row.set(KEY_MOD_IDS, Json.array(modIds.toArray(new Object[0])));
-            row.set(KEY_HASHES, hashes);
+            row.set(KEY_DECISIONS, hashes);
             DecisionAuthor da = decisionAuthors != null ? decisionAuthors.get(workshopItemId) : null;
             if (da != null && da.id != null && da.id.value() != null && !da.id.value().isEmpty()) {
                 Json author = Json.object();
@@ -368,6 +371,9 @@ public final class JavaModApprovalsStore {
         if (jarDecisions != null && jarDecisions.isObject()) {
             for (Map.Entry<String, Json> modEntry : jarDecisions.asJsonMap().entrySet()) {
                 String workshopItemId = modEntry.getKey();
+                if (!isWorkshopItemIdKey(workshopItemId)) {
+                    continue;
+                }
                 Json row = modEntry.getValue();
                 if (row == null || !row.isObject()) continue;
 
@@ -399,7 +405,7 @@ public final class JavaModApprovalsStore {
                     }
                 }
 
-                Json inner = row.at(KEY_HASHES);
+                Json inner = row.at(KEY_DECISIONS);
                 if (inner == null || !inner.isObject()) continue;
                 for (Map.Entry<String, Json> he : inner.asJsonMap().entrySet()) {
                     Json jv = he.getValue();
@@ -445,5 +451,21 @@ public final class JavaModApprovalsStore {
             }
         }
 
+    }
+
+    private static boolean isWorkshopItemIdKey(String key) {
+        if (key == null) return false;
+        String s = key.trim();
+        if (s.isEmpty()) return false;
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) {
+                return false;
+            }
+        }
+        try {
+            return Long.parseLong(s) > 0L;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 }

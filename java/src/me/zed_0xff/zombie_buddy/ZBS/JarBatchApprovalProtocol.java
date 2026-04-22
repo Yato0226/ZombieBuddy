@@ -16,8 +16,8 @@ import java.util.Locale;
  */
 public final class JarBatchApprovalProtocol {
 
-    static final String HDR_REQ  = "ZB_BATCH_V5";
-    static final String HDR_RESP = "ZB_BATCH_V2_OUT";
+    static final String HDR_REQ  = "ZB_BATCH_V6";
+    static final String HDR_RESP = "ZB_BATCH_V3_OUT";
 
     static final String TOK_ALLOW_PERSIST = "ALLOW_PERSIST";
     static final String TOK_ALLOW_SESSION = "ALLOW_SESSION";
@@ -27,6 +27,8 @@ public final class JarBatchApprovalProtocol {
     public static final class Entry {
         public final String modKey;
         public final String modId;
+        /** Nullable workshop item id for this row. */
+        public final JavaModInfo.WorkshopItemID workshopItemId;
         public final String jarAbsolutePath;
         public final String sha256;
         public final String modifiedHuman;
@@ -48,6 +50,7 @@ public final class JarBatchApprovalProtocol {
         public Entry(
             String modKey,
             String modId,
+            JavaModInfo.WorkshopItemID workshopItemId,
             String jarAbsolutePath,
             String sha256,
             String modifiedHuman,
@@ -61,6 +64,7 @@ public final class JarBatchApprovalProtocol {
         ) {
             this.modKey = modKey;
             this.modId = modId;
+            this.workshopItemId = workshopItemId;
             this.jarAbsolutePath = jarAbsolutePath != null ? jarAbsolutePath : "";
             this.sha256 = sha256 != null ? sha256 : "";
             this.modifiedHuman = modifiedHuman != null ? modifiedHuman : "";
@@ -74,19 +78,27 @@ public final class JarBatchApprovalProtocol {
         }
     }
 
-    /** One row in the batch response file: mod id, JAR hash, UI token, optional trusted author SteamID64. */
+    /** One row in the batch response file: decision key, optional workshop id, JAR hash, token, optional trusted author SteamID64. */
     public static final class OutLine {
         public final String modId;
+        public final JavaModInfo.WorkshopItemID workshopItemId;
         public final String sha256;
         public final String token;
         public final String trustedAuthorSteamId;
 
-        public OutLine(String modId, String sha256, String token) {
-            this(modId, sha256, token, "");
+        public OutLine(String modId, JavaModInfo.WorkshopItemID workshopItemId, String sha256, String token) {
+            this(modId, workshopItemId, sha256, token, "");
         }
 
-        public OutLine(String modId, String sha256, String token, String trustedAuthorSteamId) {
+        public OutLine(
+            String modId,
+            JavaModInfo.WorkshopItemID workshopItemId,
+            String sha256,
+            String token,
+            String trustedAuthorSteamId
+        ) {
             this.modId = modId != null ? modId : "";
+            this.workshopItemId = workshopItemId;
             this.sha256 = sha256 != null ? sha256 : "";
             this.token = token != null ? token : "";
             this.trustedAuthorSteamId = trustedAuthorSteamId != null ? trustedAuthorSteamId : "";
@@ -105,6 +117,8 @@ public final class JarBatchApprovalProtocol {
                 w.write(escape(e.modKey));
                 w.newLine();
                 w.write(escape(e.modId));
+                w.newLine();
+                w.write(escape(e.workshopItemId != null ? Long.toString(e.workshopItemId.value()) : ""));
                 w.newLine();
                 w.write(escape(e.jarAbsolutePath));
                 w.newLine();
@@ -147,6 +161,10 @@ public final class JarBatchApprovalProtocol {
                 }
                 String modKey = unescape(readMandatory(r, "modKey"));
                 String modId = unescape(readMandatory(r, "modId"));
+                String workshopItemIdRaw = unescape(readMandatory(r, "workshopItemId"));
+                JavaModInfo.WorkshopItemID workshopItemId = workshopItemIdRaw.isEmpty()
+                    ? null
+                    : new JavaModInfo.WorkshopItemID(Long.parseLong(workshopItemIdRaw));
                 String jarPath = unescape(readMandatory(r, "jarPath"));
                 String sha = unescape(readMandatory(r, "sha256"));
                 String modHuman = unescape(readMandatory(r, "modifiedHuman"));
@@ -164,7 +182,7 @@ public final class JarBatchApprovalProtocol {
                 zbsNotice = unescape(readMandatory(r, "zbsNotice"));
                 steamBanStatus = unescape(readMandatory(r, "steamBanStatus"));
                 steamBanReason = unescape(readMandatory(r, "steamBanReason"));
-                out.add(new Entry(modKey, modId, jarPath, sha, modHuman, priorHint, modDisplayName,
+                out.add(new Entry(modKey, modId, workshopItemId, jarPath, sha, modHuman, priorHint, modDisplayName,
                     zbsValid, zbsSteamId, zbsNotice, steamBanStatus, steamBanReason));
             }
             return out;
@@ -179,7 +197,7 @@ public final class JarBatchApprovalProtocol {
 
     /**
      * Writes one line per decision:
-     * {@code modId + '\t' + sha256 + '\t' + token + ['\t' + trustedAuthorSteamId]} (fields escaped).
+     * {@code modId + '\t' + workshopItemId + '\t' + sha256 + '\t' + token + ['\t' + trustedAuthorSteamId]} (fields escaped).
      */
     public static void writeResponse(Path path, List<OutLine> lines) throws IOException {
         try (BufferedWriter w = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
@@ -187,6 +205,8 @@ public final class JarBatchApprovalProtocol {
             w.newLine();
             for (OutLine ol : lines) {
                 w.write(escape(ol.modId));
+                w.write('\t');
+                w.write(escape(ol.workshopItemId != null ? Long.toString(ol.workshopItemId.value()) : ""));
                 w.write('\t');
                 w.write(escape(ol.sha256));
                 w.write('\t');
@@ -218,12 +238,18 @@ public final class JarBatchApprovalProtocol {
                 int t2 = line.indexOf('\t', t1 + 1);
                 if (t2 <= t1 || t2 >= line.length() - 1) return null;
                 int t3 = line.indexOf('\t', t2 + 1);
+                if (t3 <= t2 || t3 >= line.length() - 1) return null;
+                int t4 = line.indexOf('\t', t3 + 1);
                 String modId = unescape(line.substring(0, t1));
-                String sha = unescape(line.substring(t1 + 1, t2));
-                String tok = unescape(t3 < 0 ? line.substring(t2 + 1) : line.substring(t2 + 1, t3));
+                String workshopItemIdRaw = unescape(line.substring(t1 + 1, t2));
+                JavaModInfo.WorkshopItemID workshopItemId = workshopItemIdRaw.isEmpty()
+                    ? null
+                    : new JavaModInfo.WorkshopItemID(Long.parseLong(workshopItemIdRaw));
+                String sha = unescape(line.substring(t2 + 1, t3));
+                String tok = unescape(t4 < 0 ? line.substring(t3 + 1) : line.substring(t3 + 1, t4));
                 if (!isValidToken(tok)) return null;
-                String trustedAuthorSteamId = t3 < 0 ? "" : unescape(line.substring(t3 + 1));
-                out.add(new OutLine(modId, sha, tok, trustedAuthorSteamId));
+                String trustedAuthorSteamId = t4 < 0 ? "" : unescape(line.substring(t4 + 1));
+                out.add(new OutLine(modId, workshopItemId, sha, tok, trustedAuthorSteamId));
             }
             return out;
         }

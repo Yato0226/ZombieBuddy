@@ -544,12 +544,20 @@ public class Loader {
     /** Restores the same label the game uses while loading mods (see {@link GameWindow#DoLoadingText}). */
     private static final String LOADING_MODS = "Loading Mods";
 
-    private static String decisionKey(JavaModInfo jModInfo, String modId) {
+    private static String workshopDecisionKey(JavaModInfo jModInfo) {
         if (jModInfo != null) {
             JavaModInfo.WorkshopItemID wid = jModInfo.getWorkshopItemID();
             if (wid != null) {
                 return Long.toString(wid.value());
             }
+        }
+        return null;
+    }
+
+    private static String runtimeDecisionKey(JavaModInfo jModInfo, String modId) {
+        String workshopKey = workshopDecisionKey(jModInfo);
+        if (workshopKey != null) {
+            return workshopKey;
         }
         return modId != null && !modId.isEmpty() ? modId : (jModInfo != null ? jModInfo.javaPkgName() : "");
     }
@@ -589,27 +597,32 @@ public class Loader {
         if (hash == null) return false;
 
         String policy = g_jarPolicy;
-        String modKey = decisionKey(jModInfo, modId);
+        String runtimeKey = runtimeDecisionKey(jModInfo, modId);
+        String workshopKey = workshopDecisionKey(jModInfo);
 
-        String decision = lookupJarDecision(disk, modKey, hash);
+        String decision = lookupJarDecision(disk, runtimeKey, hash);
         if (DECISION_YES.equals(decision)) return true;
         if (DECISION_NO.equals(decision)) {
-            Logger.warn("Blocking Java mod by stored denial: " + modKey + " (" + jarFile + ")");
+            Logger.warn("Blocking Java mod by stored denial: " + runtimeKey + " (" + jarFile + ")");
             return false;
         }
 
         if (POLICY_ALLOW_ALL.equals(policy)) {
-            disk.put(modKey, hash, DECISION_YES);
+            if (workshopKey != null) {
+                disk.put(workshopKey, hash, DECISION_YES);
+            } else {
+                g_sessionJarDecisions.put(runtimeKey, hash, DECISION_YES);
+            }
             return true;
         }
         if (POLICY_DENY_NEW.equals(policy)) {
-            Logger.warn("Blocking Java mod by policy=deny-new: " + modKey + " (" + jarFile + ")");
+            Logger.warn("Blocking Java mod by policy=deny-new: " + runtimeKey + " (" + jarFile + ")");
             return false;
         }
 
         // policy=prompt: decisions come from approvePendingMods() in loadMods(); should not reach here.
-        Logger.warn("No approval decision for " + modKey + " (hash " + hash + ") — denying session-only.");
-        g_sessionJarDecisions.put(modKey, hash, DECISION_NO);
+        Logger.warn("No approval decision for " + runtimeKey + " (hash " + hash + ") — denying session-only.");
+        g_sessionJarDecisions.put(runtimeKey, hash, DECISION_NO);
         return false;
     }
 
@@ -644,19 +657,29 @@ public class Loader {
             if (!JarBatchApprovalProtocol.isValidToken(tok)) continue;
             String modId = ol.modId;
             String hash = ol.sha256;
+            String workshopKey = ol.workshopItemId != null ? Long.toString(ol.workshopItemId.value()) : null;
+            String runtimeKey = workshopKey != null ? workshopKey : modId;
             switch (tok) {
                 case JarBatchApprovalProtocol.TOK_ALLOW_PERSIST:
-                    disk.put(modId, hash, DECISION_YES);
+                    if (workshopKey != null) {
+                        disk.put(workshopKey, hash, DECISION_YES);
+                    } else {
+                        g_sessionJarDecisions.put(runtimeKey, hash, DECISION_YES);
+                    }
                     break;
                 case JarBatchApprovalProtocol.TOK_DENY_PERSIST:
-                    disk.put(modId, hash, DECISION_NO);
+                    if (workshopKey != null) {
+                        disk.put(workshopKey, hash, DECISION_NO);
+                    } else {
+                        g_sessionJarDecisions.put(runtimeKey, hash, DECISION_NO);
+                    }
                     break;
                 case JarBatchApprovalProtocol.TOK_ALLOW_SESSION:
-                    g_sessionJarDecisions.put(modId, hash, DECISION_YES);
+                    g_sessionJarDecisions.put(runtimeKey, hash, DECISION_YES);
                     break;
                 case JarBatchApprovalProtocol.TOK_DENY_SESSION:
                 default:
-                    g_sessionJarDecisions.put(modId, hash, DECISION_NO);
+                    g_sessionJarDecisions.put(runtimeKey, hash, DECISION_NO);
                     break;
             }
             if (authors != null) {
@@ -808,8 +831,9 @@ public class Loader {
                 File jarFile = jModInfo.getJarFileAsFile();
                 String hash = sha256Hex(jarFile);
                 if (hash == null) continue;
-                String modKey = decisionKey(jModInfo, modId);
-                addDecisionModId(decisionModIds, modKey, modId);
+                String modKey = runtimeDecisionKey(jModInfo, modId);
+                String workshopKey = workshopDecisionKey(jModInfo);
+                addDecisionModId(decisionModIds, workshopKey, modId);
                 String modified = (jarFile != null && jarFile.exists())
                     ? java.time.Instant.ofEpochMilli(jarFile.lastModified())
                         .atZone(java.time.ZoneId.systemDefault())
@@ -858,10 +882,14 @@ public class Loader {
                     zbsValid = "";
                     zbsNotice = "";
                 }
-                addDecisionAuthor(decisionAuthors, modKey, zbsSID, g_authors);
+                addDecisionAuthor(decisionAuthors, workshopKey, zbsSID, g_authors);
                 boolean steamBanned = STEAM_BAN_STATUS_YES.equals(steamBanStatus);
                 if (!steamBanned && "yes".equals(zbsValid) && isAuthorTrusted(zbsSID)) {
-                    approvals.put(modKey, hash, DECISION_YES);
+                    if (workshopKey != null) {
+                        approvals.put(workshopKey, hash, DECISION_YES);
+                    } else {
+                        g_sessionJarDecisions.put(modKey, hash, DECISION_YES);
+                    }
                     continue;
                 }
                 if (!steamBanned) {
@@ -871,6 +899,7 @@ public class Loader {
                 batchEntries.add(new JarBatchApprovalProtocol.Entry(
                     modKey,
                     modId,
+                    workshopItemId,
                     jarFile.getAbsolutePath(),
                     hash,
                     modified,
@@ -938,8 +967,9 @@ public class Loader {
                         ? workshopUploaderForZbsVerify(workshopItemId, workshopDetailsById)
                         : null;
                     ZBSVerifier.Verification zbs = ZBSVerifier.verify(jarFile, zbsFile, hash, uploader);
-                    String modKey = decisionKey(jModInfo, modId);
-                    addDecisionAuthor(decisionAuthors, modKey, zbs.sid, g_authors);
+                    String modKey = runtimeDecisionKey(jModInfo, modId);
+                    String workshopKey = workshopDecisionKey(jModInfo);
+                    addDecisionAuthor(decisionAuthors, workshopKey, zbs.sid, g_authors);
                     if (!(zbs instanceof ZBSVerifier.ValidSignature)) {
                         shouldSkip = true;
                         skipReason = " (invalid ZBS: " + zbs.detailedMessage + ", modId=" + modId + ")";
@@ -962,8 +992,9 @@ public class Loader {
                 String decision = null;
                 boolean persisted = false;
                 if (hash != null) {
-                    String modKey = decisionKey(jModInfo, modId);
-                    addDecisionModId(decisionModIds, modKey, modId);
+                    String modKey = runtimeDecisionKey(jModInfo, modId);
+                    String workshopKey = workshopDecisionKey(jModInfo);
+                    addDecisionModId(decisionModIds, workshopKey, modId);
                     String v = approvals.get(modKey, hash);
                     if (v != null) {
                         decision = v;

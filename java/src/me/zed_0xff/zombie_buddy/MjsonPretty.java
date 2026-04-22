@@ -17,7 +17,7 @@ final class MjsonPretty {
 
     static String format(Json root) {
         StringBuilder sb = new StringBuilder();
-        write(root, sb, 0);
+        write(root, sb, 0, null);
         sb.append('\n');
         return sb.toString();
     }
@@ -28,7 +28,7 @@ final class MjsonPretty {
         }
     }
 
-    private static void write(Json j, StringBuilder sb, int depth) {
+    private static void write(Json j, StringBuilder sb, int depth, String fieldName) {
         if (j == null || j.isNull()) {
             sb.append("null");
             return;
@@ -52,10 +52,14 @@ final class MjsonPretty {
                 sb.append("[]");
                 return;
             }
+            if ("mod_ids".equals(fieldName)) {
+                writeCompactArray(j, sb);
+                return;
+            }
             sb.append("[\n");
             for (int i = 0; i < list.size(); i++) {
                 indent(sb, depth + 1);
-                write(list.get(i), sb, depth + 1);
+                write(list.get(i), sb, depth + 1, null);
                 if (i < list.size() - 1) {
                     sb.append(',');
                 }
@@ -71,6 +75,10 @@ final class MjsonPretty {
                 sb.append("{}");
                 return;
             }
+            if ("author".equals(fieldName)) {
+                writeCompactObject(j, sb);
+                return;
+            }
             sb.append("{\n");
             Iterator<Map.Entry<String, Json>> it = map.entrySet().iterator();
             while (it.hasNext()) {
@@ -78,7 +86,7 @@ final class MjsonPretty {
                 indent(sb, depth + 1);
                 appendQuoted(sb, e.getKey());
                 sb.append(": ");
-                write(e.getValue(), sb, depth + 1);
+                write(e.getValue(), sb, depth + 1, e.getKey());
                 if (it.hasNext()) {
                     sb.append(',');
                 }
@@ -89,6 +97,60 @@ final class MjsonPretty {
             return;
         }
         sb.append("null");
+    }
+
+    private static void writeCompactArray(Json j, StringBuilder sb) {
+        List<Json> list = j.asJsonList();
+        sb.append('[');
+        for (int i = 0; i < list.size(); i++) {
+            Json item = list.get(i);
+            if (item == null || item.isNull()) {
+                sb.append("null");
+            } else if (item.isString()) {
+                appendQuoted(sb, item.asString());
+            } else if (item.isBoolean()) {
+                sb.append(item.asBoolean());
+            } else if (item.isNumber()) {
+                Object v = item.getValue();
+                sb.append(v != null ? v.toString() : "0");
+            } else {
+                // Fallback for unexpected nested structures.
+                write(item, sb, 0, null);
+            }
+            if (i < list.size() - 1) {
+                sb.append(", ");
+            }
+        }
+        sb.append(']');
+    }
+
+    private static void writeCompactObject(Json j, StringBuilder sb) {
+        Map<String, Json> map = j.asJsonMap();
+        sb.append('{');
+        Iterator<Map.Entry<String, Json>> it = map.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, Json> e = it.next();
+            appendQuoted(sb, e.getKey());
+            sb.append(": ");
+            Json v = e.getValue();
+            if (v == null || v.isNull()) {
+                sb.append("null");
+            } else if (v.isString()) {
+                appendQuoted(sb, v.asString());
+            } else if (v.isBoolean()) {
+                sb.append(v.asBoolean());
+            } else if (v.isNumber()) {
+                Object raw = v.getValue();
+                sb.append(raw != null ? raw.toString() : "0");
+            } else {
+                // Fallback for unexpected nested structures.
+                write(v, sb, 0, null);
+            }
+            if (it.hasNext()) {
+                sb.append(", ");
+            }
+        }
+        sb.append('}');
     }
 
     private static void appendQuoted(StringBuilder sb, String s) {
