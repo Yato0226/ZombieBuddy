@@ -64,8 +64,9 @@ public final class TinyfdJavaModApprovalFrontend implements JavaModApprovalFront
                 : "<unknown>";
             String zbsLine = "";
             if (e.zbsValid != null && !e.zbsValid.isEmpty()) {
+                String sid = e.zbsSteamId != null ? e.zbsSteamId.value() : "";
                 zbsLine = "ZBS: " + e.zbsValid
-                    + (e.zbsSteamId != null && !e.zbsSteamId.isEmpty() ? " (Steam: " + e.zbsSteamId + ")" : "")
+                    + (!sid.isEmpty() ? " (Steam: " + sid + ")" : "")
                     + "\n\n";
             }
             Boolean allow = tinyfdYesNo(

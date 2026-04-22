@@ -101,9 +101,9 @@ public final class JavaModApprovalsStore {
 
     static final class Snapshot {
         private final JarDecisionTable jarDecisions;
-        private final Map<String, AuthorEntry> authors;
+        private final Map<SteamID64, AuthorEntry> authors;
 
-        Snapshot(JarDecisionTable jarDecisions, Map<String, AuthorEntry> authors) {
+        Snapshot(JarDecisionTable jarDecisions, Map<SteamID64, AuthorEntry> authors) {
             this.jarDecisions = jarDecisions;
             this.authors = authors;
         }
@@ -112,7 +112,7 @@ public final class JavaModApprovalsStore {
             return jarDecisions;
         }
 
-        Map<String, AuthorEntry> authors() {
+        Map<SteamID64, AuthorEntry> authors() {
             return authors;
         }
     }
@@ -121,7 +121,7 @@ public final class JavaModApprovalsStore {
         Path jp = jsonPath();
         Path leg = legacyTxtPath();
         JarDecisionTable table = new JarDecisionTable();
-        Map<String, AuthorEntry> authors = new HashMap<>();
+        Map<SteamID64, AuthorEntry> authors = new HashMap<>();
         try {
             if (Files.exists(jp)) {
                 readJsonInto(jp, table, authors);
@@ -144,7 +144,7 @@ public final class JavaModApprovalsStore {
         return loadSnapshot().jarDecisions();
     }
 
-    static Map<String, AuthorEntry> loadAuthors() {
+    static Map<SteamID64, AuthorEntry> loadAuthors() {
         return new HashMap<>(loadSnapshot().authors());
     }
 
@@ -156,7 +156,7 @@ public final class JavaModApprovalsStore {
         save(table, loadAuthors());
     }
 
-    static void save(JarDecisionTable table, Map<String, AuthorEntry> authors) {
+    static void save(JarDecisionTable table, Map<SteamID64, AuthorEntry> authors) {
         try {
             Path jp = jsonPath();
             if (jp.getParent() != null) {
@@ -208,16 +208,16 @@ public final class JavaModApprovalsStore {
         return jarDecisions;
     }
 
-    static Json authorsToJson(Map<String, AuthorEntry> authors) {
+    static Json authorsToJson(Map<SteamID64, AuthorEntry> authors) {
         Json o = Json.object();
         if (authors == null || authors.isEmpty()) {
             return o;
         }
-        List<String> ids = new ArrayList<>(authors.keySet());
-        Collections.sort(ids);
-        for (String steamId : ids) {
-            AuthorEntry ae = authors.get(steamId);
-            if (ae == null || steamId == null || steamId.isEmpty()) continue;
+        List<SteamID64> ids = new ArrayList<>(authors.keySet());
+        ids.sort((a, b) -> a.value().compareTo(b.value()));
+        for (SteamID64 sid : ids) {
+            AuthorEntry ae = authors.get(sid);
+            if (ae == null || sid == null || sid.value() == null || sid.value().isEmpty()) continue;
             Json a = Json.object();
             a.set(KEY_TRUST, ae.trust);
             List<Json> keyElems = new ArrayList<>();
@@ -227,12 +227,12 @@ public final class JavaModApprovalsStore {
                 keyElems.add(Json.make(k));
             }
             a.set(KEY_KEYS, Json.array(keyElems.toArray(new Object[0])));
-            o.set(steamId, a);
+            o.set(sid.value(), a);
         }
         return o;
     }
 
-    private static void readJsonInto(Path jp, JarDecisionTable into, Map<String, AuthorEntry> authors) throws Exception {
+    private static void readJsonInto(Path jp, JarDecisionTable into, Map<SteamID64, AuthorEntry> authors) throws Exception {
         String raw = Files.readString(jp, StandardCharsets.UTF_8);
         String text = raw == null ? "" : raw.trim();
         if (text.isEmpty()) {
@@ -259,7 +259,7 @@ public final class JavaModApprovalsStore {
         readAuthorsBlock(root, authors);
     }
 
-    private static void readAuthorsBlock(Json root, Map<String, AuthorEntry> authors) {
+    private static void readAuthorsBlock(Json root, Map<SteamID64, AuthorEntry> authors) {
         Json authorsObj = root.at(KEY_AUTHORS);
         if (authorsObj != null && authorsObj.isObject()) {
             for (Map.Entry<String, Json> e : authorsObj.asJsonMap().entrySet()) {
@@ -283,7 +283,7 @@ public final class JavaModApprovalsStore {
                         }
                     }
                 }
-                authors.put(steamId.trim(), new AuthorEntry(trust, keys));
+                authors.put(new SteamID64(steamId.trim()), new AuthorEntry(trust, keys));
             }
         }
     }

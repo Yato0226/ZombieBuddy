@@ -75,7 +75,7 @@ public final class BatchJarApprovalMain {
             }
 
             // Author column: SteamID64 → label via SteamAuthorNames (GitHub + ~/.zombie_buddy cache).
-            final Map<String, String> steamIdToDisplayName = SteamAuthorNames.loadSteamIdToDisplayName();
+            final Map<SteamID64, String> steamIdToDisplayName = SteamAuthorNames.loadSteamIdToDisplayName();
             SwingUtilities.invokeLater(() -> showDialog(entries, resp, steamIdToDisplayName));
         } catch (Exception e) {
             e.printStackTrace(System.err);
@@ -94,7 +94,7 @@ public final class BatchJarApprovalMain {
     private static void showDialog(
         List<JarBatchApprovalProtocol.Entry> entries,
         Path resp,
-        Map<String, String> steamIdToDisplayName
+        Map<SteamID64, String> steamIdToDisplayName
     ) {
         JFrame frame = new JFrame("ZombieBuddy — Java mod approval " + JarBatchApprovalProtocol.osTag());
         frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
@@ -200,17 +200,18 @@ public final class BatchJarApprovalMain {
             if (rowBg != null) {
                 authorCell.setBackground(rowBg);
             }
-            if (zbsYes && e.zbsSteamId != null && !e.zbsSteamId.isEmpty()) {
-                String profileUrl = ZBSVerifier.steamCommunityProfileUrl(e.zbsSteamId);
+            String zbsSteamId = e.zbsSteamId != null ? e.zbsSteamId.value() : "";
+            if (zbsYes && !zbsSteamId.isEmpty()) {
+                String profileUrl = ZBSVerifier.steamProfileUrl(zbsSteamId);
                 String resolved = steamIdToDisplayName != null
                     ? steamIdToDisplayName.get(e.zbsSteamId)
                     : null;
-                String linkText = resolved != null && !resolved.isEmpty() ? resolved : e.zbsSteamId;
+                String linkText = resolved != null && !resolved.isEmpty() ? resolved : zbsSteamId;
                 JLabel linkLab = new JLabel(
                     "<html><a href=\"" + profileUrl + "\">" + escapeHtml(linkText) + "</a></html>");
                 linkLab.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-                if (!e.zbsSteamId.equals(linkText)) {
-                    linkLab.setToolTipText(e.zbsSteamId);
+                if (!zbsSteamId.equals(linkText)) {
+                    linkLab.setToolTipText(zbsSteamId);
                 }
                 linkLab.addMouseListener(new MouseAdapter() {
                     @Override
@@ -224,11 +225,17 @@ public final class BatchJarApprovalMain {
                 }
                 authorCell.add(linkLab);
             } else if (zbsNo) {
+                String fullNotice = e.zbsNotice != null && !e.zbsNotice.isEmpty()
+                    ? e.zbsNotice
+                    : "Invalid signature — JAR may have been tampered with.";
+                int nl = fullNotice.indexOf('\n');
+                String shortNotice = nl >= 0 ? fullNotice.substring(0, nl).trim() : fullNotice;
                 JLabel warn = new JLabel("<html><font color=\"#b00000\">" + escapeHtml(
-                    e.zbsNotice != null && !e.zbsNotice.isEmpty()
-                        ? e.zbsNotice
-                        : "Invalid signature — JAR may have been tampered with."
+                    shortNotice
                 ) + "</font></html>");
+                if (nl >= 0 && nl < fullNotice.length() - 1) {
+                    warn.setToolTipText("<html>" + escapeHtml(fullNotice).replace("\n", "<br/>") + "</html>");
+                }
                 warn.setAlignmentX(Component.LEFT_ALIGNMENT);
                 if (rowBg != null) {
                     warn.setOpaque(true);
@@ -317,7 +324,7 @@ public final class BatchJarApprovalMain {
                 trustCb.setBackground(rowBg);
             }
             trustChecks[i] = trustCb;
-            authorGroupKey[i] = e.zbsSteamId != null ? e.zbsSteamId : "";
+            authorGroupKey[i] = zbsSteamId;
             grid.add(trustCb, c);
             i++;
         }
@@ -438,7 +445,7 @@ public final class BatchJarApprovalMain {
                     }
                     String trustedAuthorSteamId = "";
                     if (persist && trustChecks[k].isSelected() && "yes".equals(e.zbsValid)) {
-                        trustedAuthorSteamId = e.zbsSteamId != null ? e.zbsSteamId : "";
+                        trustedAuthorSteamId = e.zbsSteamId != null ? e.zbsSteamId.value() : "";
                     }
                     out.add(new JarBatchApprovalProtocol.OutLine(e.modKey, e.sha256, tok, trustedAuthorSteamId));
                 }

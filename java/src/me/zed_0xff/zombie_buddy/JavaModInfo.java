@@ -1,6 +1,8 @@
 package me.zed_0xff.zombie_buddy;
 
 import java.io.File;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Represents Java mod information parsed from a mod.info file.
@@ -16,6 +18,14 @@ public record JavaModInfo(
     /** From {@code name=} in mod.info; may be null. */
     String displayName
 ) {
+    /** Project Zomboid Steam app id used in Workshop paths: .../content/108600/<publishedfileid>/... */
+    private static final String PZ_APP_ID = "108600";
+    private static final Pattern WORKSHOP_ITEM_ID_IN_PATH =
+        Pattern.compile("/content/" + PZ_APP_ID + "/([0-9]+)/");
+
+    /** Strongly-typed Steam Workshop item id ({@code publishedfileid}). */
+    public record WorkshopItemID(long value) {}
+
     public JavaModInfo(File modDirectory, File modInfoFile) {
         this(modDirectory, modInfoFile, null, null, null, null, null);
     }
@@ -32,6 +42,28 @@ public record JavaModInfo(
             return null;
         }
         return new File(modDirectory, jarFilePath);
+    }
+
+    /**
+     * Extracts Steam Workshop {@code publishedfileid} from mod directory path:
+     * {@code .../content/108600/<workshopItemId>/...}
+     *
+     * @return typed Workshop item id, or {@code null} when not a Workshop-installed mod path.
+     */
+    public WorkshopItemID getWorkshopItemID() {
+        if (modDirectory == null) {
+            return null;
+        }
+        String p = modDirectory.getAbsolutePath().replace('\\', '/');
+        Matcher m = WORKSHOP_ITEM_ID_IN_PATH.matcher(p + "/");
+        if (!m.find()) {
+            return null;
+        }
+        try {
+            return new WorkshopItemID(Long.parseLong(m.group(1)));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
     
     /**

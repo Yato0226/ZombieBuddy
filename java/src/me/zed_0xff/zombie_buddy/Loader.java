@@ -63,8 +63,6 @@ public class Loader {
     private static final String POLICY_DENY_NEW     = "deny-new";
     private static final String POLICY_ALLOW_ALL    = "allow-all";
     private static final Set<String> VALID_POLICIES = Set.of(POLICY_PROMPT, POLICY_DENY_NEW, POLICY_ALLOW_ALL);
-    private static final String STEAM_APP_ID_PZ = "108600";
-    private static final Pattern WORKSHOP_MOD_ID_IN_PATH = Pattern.compile("/content/" + STEAM_APP_ID_PZ + "/([0-9]+)/");
     private static final String STEAM_BAN_STATUS_YES = "yes";
     private static final String STEAM_BAN_STATUS_NO = "no";
     private static final String STEAM_BAN_STATUS_UNKNOWN = "unknown";
@@ -115,8 +113,9 @@ public class Loader {
     // A new JAR hash under the same mod id adds a new inner key; older hashes stay recorded.
     static final String DECISION_YES = "yes";
     static final String DECISION_NO  = "no";
+
     private static final JarDecisionTable g_sessionJarDecisions = new JarDecisionTable();
-    private static final Map<String, JavaModApprovalsStore.AuthorEntry> g_authors = new HashMap<>();
+    private static final Map<SteamID64, JavaModApprovalsStore.AuthorEntry> g_authors = new HashMap<>();
 
     private static final Object g_approvalFrontendLock = new Object();
     private static volatile JavaModApprovalFrontend g_approvalFrontend;
@@ -370,39 +369,37 @@ public class Loader {
     private static final class WorkshopItemDetails {
         final SteamBanInfo ban;
         /** Null if Steam API did not include {@code creator} for this item. */
-        final String creatorSteamId64;
+        final SteamID64 creatorSteamId64;
 
-        WorkshopItemDetails(SteamBanInfo ban, String creatorSteamId64) {
+        WorkshopItemDetails(SteamBanInfo ban, SteamID64 creatorSteamId64) {
             this.ban = ban;
             this.creatorSteamId64 = creatorSteamId64;
         }
     }
 
-    private static String extractWorkshopModId(File modDirectory) {
-        if (modDirectory == null) {
-            return "";
-        }
-        String p = modDirectory.getAbsolutePath().replace('\\', '/');
-        Matcher m = WORKSHOP_MOD_ID_IN_PATH.matcher(p + "/");
-        if (!m.find()) {
-            return "";
-        }
-        return m.group(1);
-    }
-
-    private static void setUnknownWorkshopDetails(Map<String, WorkshopItemDetails> out, Set<String> workshopIds, String reason) {
-        for (String id : workshopIds) {
-            if (id == null || id.isEmpty()) continue;
+    private static void setUnknownWorkshopDetails(
+        Map<JavaModInfo.WorkshopItemID, WorkshopItemDetails> out,
+        Set<JavaModInfo.WorkshopItemID> workshopIds,
+        String reason
+    ) {
+        for (JavaModInfo.WorkshopItemID id : workshopIds) {
+            if (id == null) continue;
             out.put(id, new WorkshopItemDetails(new SteamBanInfo(STEAM_BAN_STATUS_UNKNOWN, reason), null));
         }
     }
 
-    private static String parsePublishedFileId(Json idJson) {
+    private static JavaModInfo.WorkshopItemID parsePublishedFileId(Json idJson) {
         if (idJson == null) return null;
-        if (idJson.isString()) return idJson.asString();
+        if (idJson.isString()) {
+            try {
+                return new JavaModInfo.WorkshopItemID(Long.parseLong(idJson.asString().trim()));
+            } catch (Exception e) {
+                return null;
+            }
+        }
         if (idJson.isNumber()) {
             try {
-                return Long.toString(idJson.asLong());
+                return new JavaModInfo.WorkshopItemID(idJson.asLong());
             } catch (Exception e) {
                 return null;
             }
@@ -410,17 +407,17 @@ public class Loader {
         return null;
     }
 
-    private static String parseCreatorSteamId64(Json item) {
+    private static SteamID64 parseCreatorSteamId64(Json item) {
         if (item == null || !item.isObject()) return null;
         Json cj = item.at("creator");
         if (cj == null) return null;
         if (cj.isString()) {
             String s = cj.asString().trim();
-            return s.isEmpty() ? null : s;
+            return s.isEmpty() ? null : new SteamID64(s);
         }
         if (cj.isNumber()) {
             try {
-                return Long.toString(cj.asLong());
+                return new SteamID64(Long.toString(cj.asLong()));
             } catch (Exception e) {
                 return null;
             }
@@ -431,22 +428,24 @@ public class Loader {
     /**
      * Workshop ban status and uploader (creator) SteamID64 per published file id.
      */
-    private static Map<String, WorkshopItemDetails> fetchWorkshopItemDetails(Set<String> workshopIds) {
-        Map<String, WorkshopItemDetails> out = new HashMap<>();
+    private static Map<JavaModInfo.WorkshopItemID, WorkshopItemDetails> fetchWorkshopItemDetails(
+        Set<JavaModInfo.WorkshopItemID> workshopIds
+    ) {
+        Map<JavaModInfo.WorkshopItemID, WorkshopItemDetails> out = new HashMap<>();
         if (workshopIds == null || workshopIds.isEmpty()) {
             return out;
         }
         Logger.info("checking mods ban status");
         try {
-            List<String> ids = new ArrayList<>(workshopIds);
+            List<JavaModInfo.WorkshopItemID> ids = new ArrayList<>(workshopIds);
             for (int from = 0; from < ids.size(); from += STEAM_PUBLISHED_DETAILS_BATCH_SIZE) {
                 int to = Math.min(ids.size(), from + STEAM_PUBLISHED_DETAILS_BATCH_SIZE);
-                List<String> chunk = ids.subList(from, to);
+                List<JavaModInfo.WorkshopItemID> chunk = ids.subList(from, to);
                 StringBuilder body = new StringBuilder();
                 body.append("itemcount=").append(chunk.size());
                 for (int i = 0; i < chunk.size(); i++) {
                     body.append("&publishedfileids[").append(i).append("]=")
-                        .append(URLEncoder.encode(chunk.get(i), java.nio.charset.StandardCharsets.UTF_8));
+                        .append(URLEncoder.encode(Long.toString(chunk.get(i).value()), java.nio.charset.StandardCharsets.UTF_8));
                 }
                 HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(STEAM_GET_PUBLISHED_FILE_DETAILS_URL))
@@ -467,10 +466,10 @@ public class Loader {
                     setUnknownWorkshopDetails(out, new HashSet<>(chunk), "Steam API response missing publishedfiledetails");
                     continue;
                 }
-                Set<String> seen = new HashSet<>();
+                Set<JavaModInfo.WorkshopItemID> seen = new HashSet<>();
                 for (Json it : details.asJsonList()) {
                     if (it == null || !it.isObject()) continue;
-                    String id = parsePublishedFileId(it.at("publishedfileid"));
+                    JavaModInfo.WorkshopItemID id = parsePublishedFileId(it.at("publishedfileid"));
                     if (id == null) continue;
                     seen.add(id);
                     int banned = 0;
@@ -483,13 +482,13 @@ public class Loader {
                     if (banReasonJson != null && banReasonJson.isString()) {
                         reason = banReasonJson.asString();
                     }
-                    String creator = parseCreatorSteamId64(it);
+                    SteamID64 creator = parseCreatorSteamId64(it);
                     out.put(id, new WorkshopItemDetails(
-                        new SteamBanInfo(banned == 1 ? STEAM_BAN_STATUS_YES : STEAM_BAN_STATUS_NO, reason),
+                        new SteamBanInfo(banned != 0 ? STEAM_BAN_STATUS_YES : STEAM_BAN_STATUS_NO, reason),
                         creator
                     ));
                 }
-                for (String id : chunk) {
+                for (JavaModInfo.WorkshopItemID id : chunk) {
                     if (!seen.contains(id) && !out.containsKey(id)) {
                         out.put(id, new WorkshopItemDetails(
                             new SteamBanInfo(STEAM_BAN_STATUS_UNKNOWN, "Steam API response missing mod id"),
@@ -508,18 +507,17 @@ public class Loader {
     }
 
     /**
-     * @return {@code null} = skip Workshop uploader check (no workshop folder in path); non-null = binding string
-     *         (empty if creator unknown — ZBS verification must fail closed).
+     * @return {@code null} = skip Workshop uploader check (no workshop folder in path or creator unavailable).
      */
-    private static String workshopUploaderForZbsVerify(String workshopModId, Map<String, WorkshopItemDetails> byId) {
-        if (workshopModId == null || workshopModId.isEmpty()) {
+    private static SteamID64 workshopUploaderForZbsVerify(
+        JavaModInfo.WorkshopItemID workshopItemId,
+        Map<JavaModInfo.WorkshopItemID, WorkshopItemDetails> byId
+    ) {
+        if (workshopItemId == null) {
             return null;
         }
-        WorkshopItemDetails d = byId.get(workshopModId);
-        if (d == null) {
-            return "";
-        }
-        return d.creatorSteamId64 != null ? d.creatorSteamId64 : "";
+        WorkshopItemDetails d = byId.get(workshopItemId);
+        return d != null ? d.creatorSteamId64 : null;
     }
 
     private static String sha256Hex(File file) {
@@ -598,7 +596,7 @@ public class Loader {
     public static void applyBatchApprovalLines(
         List<JarBatchApprovalProtocol.OutLine> lines,
         JarDecisionTable disk,
-        Map<String, JavaModApprovalsStore.AuthorEntry> authors
+        Map<SteamID64, JavaModApprovalsStore.AuthorEntry> authors
     ) {
         if (lines == null) return;
         for (JarBatchApprovalProtocol.OutLine ol : lines) {
@@ -624,7 +622,8 @@ public class Loader {
             if (authors != null) {
                 String trustedSteamId = ol.trustedAuthorSteamId == null ? "" : ol.trustedAuthorSteamId.trim();
                 if (!trustedSteamId.isEmpty()) {
-                    authors.compute(trustedSteamId, (k, v) -> {
+                    SteamID64 sid = new SteamID64(trustedSteamId);
+                    authors.compute(sid, (k, v) -> {
                         if (v == null) {
                             return new JavaModApprovalsStore.AuthorEntry(true, new LinkedHashSet<>());
                         }
@@ -635,12 +634,27 @@ public class Loader {
         }
     }
 
-    private static boolean isAuthorTrusted(String steamId64) {
-        if (steamId64 == null || steamId64.isEmpty()) {
+    private static boolean isAuthorTrusted(SteamID64 sid) {
+        if (sid == null) {
             return false;
         }
-        JavaModApprovalsStore.AuthorEntry ae = g_authors.get(steamId64);
+        JavaModApprovalsStore.AuthorEntry ae = g_authors.get(sid);
         return ae != null && ae.trust;
+    }
+
+    private static String zbsNoticeForUi(ZBSVerifier.Verification zbs) {
+        if (zbs == null) {
+            return "";
+        }
+        String shortMsg = zbs.shortMessage != null ? zbs.shortMessage.trim() : "";
+        String detail = zbs.detailedMessage != null ? zbs.detailedMessage.trim() : "";
+        if (shortMsg.isEmpty()) {
+            return detail;
+        }
+        if (detail.isEmpty() || shortMsg.equals(detail)) {
+            return shortMsg;
+        }
+        return shortMsg + "\n" + detail;
     }
 
     public static void loadMods(ArrayList<String> mods) {
@@ -697,9 +711,9 @@ public class Loader {
         JavaModApprovalsStore.Snapshot approvalsSnapshot = JavaModApprovalsStore.loadSnapshot();
         JarDecisionTable approvals = approvalsSnapshot.jarDecisions();
         JarDecisionTable approvalsBefore = approvals.copy();
-        Map<String, JavaModApprovalsStore.AuthorEntry> authorsBefore = new HashMap<>();
+        Map<SteamID64, JavaModApprovalsStore.AuthorEntry> authorsBefore = new HashMap<>();
         g_authors.clear();
-        for (Map.Entry<String, JavaModApprovalsStore.AuthorEntry> e : approvalsSnapshot.authors().entrySet()) {
+        for (Map.Entry<SteamID64, JavaModApprovalsStore.AuthorEntry> e : approvalsSnapshot.authors().entrySet()) {
             authorsBefore.put(e.getKey(), e.getValue().copy());
             g_authors.put(e.getKey(), e.getValue().copy());
         }
@@ -719,16 +733,16 @@ public class Loader {
             structuralOnlySkip.add(stSkip);
         }
         boolean steamModeEnabled = SteamUtils.isSteamModeEnabled();
-        Set<String> workshopIdsToCheck = new HashSet<>();
+        Set<JavaModInfo.WorkshopItemID> workshopIdsToCheck = new HashSet<>();
         if (steamModeEnabled) {
             for (JavaModInfo jModInfo : jModInfos) {
-                String workshopModId = extractWorkshopModId(jModInfo.modDirectory());
-                if (!workshopModId.isEmpty()) {
-                    workshopIdsToCheck.add(workshopModId);
+                JavaModInfo.WorkshopItemID workshopItemId = jModInfo.getWorkshopItemID();
+                if (workshopItemId != null) {
+                    workshopIdsToCheck.add(workshopItemId);
                 }
             }
         }
-        Map<String, WorkshopItemDetails> workshopDetailsById = steamModeEnabled
+        Map<JavaModInfo.WorkshopItemID, WorkshopItemDetails> workshopDetailsById = steamModeEnabled
             ? fetchWorkshopItemDetails(workshopIdsToCheck)
             : new HashMap<>();
 
@@ -752,18 +766,18 @@ public class Loader {
                     modDisplay = modId != null ? modId : "";
                 }
                 File zbsFile = jarFile != null ? new File(jarFile.getAbsolutePath() + ".zbs") : null;
-                String workshopModId = steamModeEnabled ? extractWorkshopModId(jModInfo.modDirectory()) : "";
+                JavaModInfo.WorkshopItemID workshopItemId = steamModeEnabled ? jModInfo.getWorkshopItemID() : null;
                 String zbsValid;
-                String zbsSteamId;
+                SteamID64 zbsSID = null;
                 String zbsNotice;
                 String steamBanStatus = STEAM_BAN_STATUS_NO;
                 String steamBanReason = "";
                 if (steamModeEnabled) {
                     steamBanStatus = STEAM_BAN_STATUS_UNKNOWN;
-                    if (workshopModId.isEmpty()) {
+                    if (workshopItemId == null) {
                         steamBanReason = "Workshop id not found in mod path.";
                     } else {
-                        WorkshopItemDetails wd = workshopDetailsById.get(workshopModId);
+                        WorkshopItemDetails wd = workshopDetailsById.get(workshopItemId);
                         if (wd != null) {
                             steamBanStatus = wd.ban.status;
                             steamBanReason = wd.ban.reason;
@@ -774,27 +788,24 @@ public class Loader {
                     if (zbsFile == null || !zbsFile.isFile()) {
                         if (g_allowUnsignedMods) {
                             zbsValid = "unsigned";
-                            zbsSteamId = "";
                             zbsNotice = "";
                         } else {
                             zbsValid = "no";
-                            zbsSteamId = "";
                             zbsNotice = "Missing .zbs sidecar (allow_unsigned_mods=false)";
                         }
                     } else {
-                        String uploader = workshopUploaderForZbsVerify(workshopModId, workshopDetailsById);
-                        ZBSVerifier.Result zbs = ZBSVerifier.verify(jarFile, zbsFile, hash, uploader);
-                        zbsValid = zbs.valid() ? "yes" : "no";
-                        zbsSteamId = zbs.steamIdFromZBS();
-                        zbsNotice = zbs.invalidReason();
+                        SteamID64 uploader_id = workshopUploaderForZbsVerify(workshopItemId, workshopDetailsById);
+                        ZBSVerifier.Verification zbs = ZBSVerifier.verify(jarFile, zbsFile, hash, uploader_id);
+                        zbsValid = zbs instanceof ZBSVerifier.ValidSignature ? "yes" : "no";
+                        zbsSID = zbs.sid;
+                        zbsNotice = zbsNoticeForUi(zbs);
                     }
                 } else {
                     zbsValid = "";
-                    zbsSteamId = "";
                     zbsNotice = "";
                 }
                 boolean steamBanned = STEAM_BAN_STATUS_YES.equals(steamBanStatus);
-                if (!steamBanned && "yes".equals(zbsValid) && isAuthorTrusted(zbsSteamId)) {
+                if (!steamBanned && "yes".equals(zbsValid) && isAuthorTrusted(zbsSID)) {
                     approvals.put(modKey, hash, DECISION_YES);
                     continue;
                 }
@@ -811,7 +822,7 @@ public class Loader {
                     priorHintForBatchRow(approvals, modKey, hash),
                     modDisplay,
                     zbsValid,
-                    zbsSteamId,
+                    zbsSID,
                     zbsNotice,
                     steamBanStatus,
                     steamBanReason
@@ -829,11 +840,11 @@ public class Loader {
             String hash = sha256Hex(jarFile);
             boolean shouldSkip = false;
             String skipReason = "";
-            String workshopModId = extractWorkshopModId(jModInfo.modDirectory());
-            WorkshopItemDetails workshopRow = steamModeEnabled && !workshopModId.isEmpty()
-                ? workshopDetailsById.get(workshopModId)
+            JavaModInfo.WorkshopItemID workshopItemId = jModInfo.getWorkshopItemID();
+            WorkshopItemDetails workshopRow = steamModeEnabled && workshopItemId != null
+                ? workshopDetailsById.get(workshopItemId)
                 : null;
-            SteamBanInfo banInfo = workshopModId.isEmpty()
+            SteamBanInfo banInfo = workshopItemId == null
                 ? new SteamBanInfo(STEAM_BAN_STATUS_UNKNOWN, "Workshop id not found in mod path.")
                 : (workshopRow != null ? workshopRow.ban : null);
             boolean steamBanned = steamModeEnabled && banInfo != null && STEAM_BAN_STATUS_YES.equals(banInfo.status);
@@ -868,13 +879,13 @@ public class Loader {
                         skipReason = " (missing .zbs; allow_unsigned_mods=false, modId=" + modId + ")";
                     }
                 } else {
-                    String uploader = steamModeEnabled
-                        ? workshopUploaderForZbsVerify(workshopModId, workshopDetailsById)
+                    SteamID64 uploader = steamModeEnabled
+                        ? workshopUploaderForZbsVerify(workshopItemId, workshopDetailsById)
                         : null;
-                    ZBSVerifier.Result zbs = ZBSVerifier.verify(jarFile, zbsFile, hash, uploader);
-                    if (!zbs.valid()) {
+                    ZBSVerifier.Verification zbs = ZBSVerifier.verify(jarFile, zbsFile, hash, uploader);
+                    if (!(zbs instanceof ZBSVerifier.ValidSignature)) {
                         shouldSkip = true;
-                        skipReason = " (invalid ZBS: " + zbs.invalidReason() + ", modId=" + modId + ")";
+                        skipReason = " (invalid ZBS: " + zbs.detailedMessage + ", modId=" + modId + ")";
                     }
                 }
             }

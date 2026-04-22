@@ -36,7 +36,7 @@ public final class SteamAuthorNames {
     /**
      * Refreshes from the network when possible, writes cache on success, otherwise reads stale cache.
      */
-    public static Map<String, String> loadSteamIdToDisplayName() {
+    public static Map<SteamID64, String> loadSteamIdToDisplayName() {
         String body = fetchRemoteBody();
         if (body != null) {
             try {
@@ -55,7 +55,7 @@ public final class SteamAuthorNames {
                 Logger.warn("Could not read author names cache: " + e.getMessage());
             }
         }
-        return body != null ? parseAuthorsYml(body) : Collections.emptyMap();
+        return body != null ? parseAuthorsYML(body) : Collections.emptyMap();
     }
 
     private static String fetchRemoteBody() {
@@ -84,8 +84,8 @@ public final class SteamAuthorNames {
     }
 
     /** Each line: {@code SteamID64: Display name} (split on first {@code ": "}). */
-    static Map<String, String> parseAuthorsYml(String body) {
-        Map<String, String> out = new HashMap<>();
+    static Map<SteamID64, String> parseAuthorsYML(String body) {
+        Map<SteamID64, String> out = new HashMap<>();
         if (body == null || body.isEmpty()) {
             return out;
         }
@@ -101,7 +101,7 @@ public final class SteamAuthorNames {
             String steamId64 = s.substring(0, sep).trim();
             String displayName = s.substring(sep + 2).trim();
             if (!steamId64.isEmpty() && !displayName.isEmpty()) {
-                out.put(steamId64, displayName);
+                out.put(new SteamID64(steamId64), displayName);
             }
         }
         return out;

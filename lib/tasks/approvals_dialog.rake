@@ -41,14 +41,20 @@ namespace :zb do
     abort "authors.yml: expected a mapping with at least one entry" unless authors.is_a?(Hash) && authors.any?
 
     # Keys are SteamID64 (YAML may parse them as Integer — normalize to string).
-    sid = authors.keys.first.to_s
+    first_sid = authors.keys.first.to_s
     jar = "java/build/libs/ZombieBuddy.jar"
+    abort "missing #{jar} (build it first)" unless File.file?(jar)
 
     java = zb_find_java
     hex64 = "a" * 64
 
     sample = 3.times.map do |i|
-      label = "Signed OK"
+      zid = case i
+            when 0 then first_sid
+            when 1 then "76561198000000001"
+            else "76561198000000002"
+            end
+      label = i.zero? ? "Signed OK (authors.yml)" : "Signed OK"
       {
         mod_key: "DemoModOk#{i}",
         mod_id: "DemoModOk#{i}",
@@ -58,7 +64,7 @@ namespace :zb do
         prior_hint: "",
         mod_display_name: label,
         zbs_valid: "yes",
-        zbs_steam_id: sid,
+        zbs_steam_id: zid,
         zbs_notice: "",
         steam_ban_status: "no",
         steam_ban_reason: ""

@@ -37,7 +37,7 @@ public final class JarBatchApprovalProtocol {
         /** {@code yes} / {@code no} / {@code unsigned} (missing .zbs while allowed) / empty (legacy). */
         public final String zbsValid;
         /** Author's Steam id from {@code .zbs} when present. */
-        public final String zbsSteamId;
+        public final SteamID64 zbsSteamId;
         /** Non-empty when {@link #zbsValid} is {@code no}. */
         public final String zbsNotice;
         /** {@code yes} / {@code no} / {@code unknown}. */
@@ -54,7 +54,7 @@ public final class JarBatchApprovalProtocol {
             String priorHint,
             String modDisplayName,
             String zbsValid,
-            String zbsSteamId,
+            SteamID64 zbsSteamId,
             String zbsNotice,
             String steamBanStatus,
             String steamBanReason
@@ -67,7 +67,7 @@ public final class JarBatchApprovalProtocol {
             this.priorHint = priorHint != null ? priorHint : "";
             this.modDisplayName = modDisplayName != null ? modDisplayName : "";
             this.zbsValid = zbsValid != null ? zbsValid : "";
-            this.zbsSteamId = zbsSteamId != null ? zbsSteamId : "";
+            this.zbsSteamId = zbsSteamId;
             this.zbsNotice = zbsNotice != null ? zbsNotice : "";
             this.steamBanStatus = steamBanStatus != null ? steamBanStatus : "";
             this.steamBanReason = steamBanReason != null ? steamBanReason : "";
@@ -118,7 +118,7 @@ public final class JarBatchApprovalProtocol {
                 w.newLine();
                 w.write(escape(e.zbsValid));
                 w.newLine();
-                w.write(escape(e.zbsSteamId));
+                w.write(escape(e.zbsSteamId != null ? e.zbsSteamId.value() : ""));
                 w.newLine();
                 w.write(escape(e.zbsNotice));
                 w.newLine();
@@ -153,13 +153,14 @@ public final class JarBatchApprovalProtocol {
                 String priorHint = unescape(readMandatory(r, "priorHint"));
                 String modDisplayName;
                 String zbsValid = "";
-                String zbsSteamId = "";
+                SteamID64 zbsSteamId = null;
                 String zbsNotice = "";
                 String steamBanStatus = "";
                 String steamBanReason = "";
                 modDisplayName = unescape(readMandatory(r, "modDisplayName"));
                 zbsValid = unescape(readMandatory(r, "zbsValid"));
-                zbsSteamId = unescape(readMandatory(r, "zbsSteamId"));
+                String zbsSteamIdRaw = unescape(readMandatory(r, "zbsSteamId"));
+                zbsSteamId = zbsSteamIdRaw.isEmpty() ? null : new SteamID64(zbsSteamIdRaw);
                 zbsNotice = unescape(readMandatory(r, "zbsNotice"));
                 steamBanStatus = unescape(readMandatory(r, "steamBanStatus"));
                 steamBanReason = unescape(readMandatory(r, "steamBanReason"));
