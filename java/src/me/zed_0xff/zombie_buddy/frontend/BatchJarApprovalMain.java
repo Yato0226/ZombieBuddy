@@ -50,6 +50,8 @@ public final class BatchJarApprovalMain {
 
     private static final Color ZBS_ROW_OK = new Color(220, 255, 220);
     private static final Color ZBS_ROW_BAD = new Color(255, 210, 210);
+    private static final Color STEAM_BAN_UNKNOWN = new Color(184, 134, 11);
+    private static final Color STEAM_BAN_NO = new Color(0, 128, 0);
     private static final Insets HEADER_INSETS = new Insets(3, 8, 3, 8);
     private static final Insets ROW_INSETS = new Insets(0, 0, 0, 0);
     private static final int COL_MOD = 0;
@@ -288,6 +290,7 @@ public final class BatchJarApprovalMain {
             c.weightx = W_UPDATED;
             c.fill = GridBagConstraints.BOTH;
             JLabel dateLab = new JLabel(e.modifiedHuman != null && !e.modifiedHuman.isEmpty() ? e.modifiedHuman : "—");
+            dateLab.setHorizontalAlignment(SwingConstants.CENTER);
             applyRowBackground(dateLab, rowBg);
             grid.add(dateLab, c);
 
@@ -295,6 +298,12 @@ public final class BatchJarApprovalMain {
             c.weightx = W_STEAM_BAN;
             c.fill = GridBagConstraints.BOTH;
             JLabel banStatusLab = new JLabel(steamBanYes ? "Yes" : (steamBanUnknown ? "Unknown" : "No"));
+            banStatusLab.setHorizontalAlignment(SwingConstants.CENTER);
+            if (steamBanUnknown) {
+                banStatusLab.setForeground(STEAM_BAN_UNKNOWN);
+            } else if (!steamBanYes) {
+                banStatusLab.setForeground(STEAM_BAN_NO);
+            }
             applyRowBackground(banStatusLab, rowBg);
             if (e.steamBanReason != null && !e.steamBanReason.isEmpty()) {
                 banStatusLab.setToolTipText(escapeHtml(e.steamBanReason));
@@ -317,12 +326,12 @@ public final class BatchJarApprovalMain {
             allowNo[i] = noB;
             initialAllowYes[i] = yesB.isSelected();
 
-            JPanel radios = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+            JPanel radios = new JPanel(new FlowLayout(FlowLayout.CENTER, 4, 0));
             applyRowBackground(radios, rowBg);
             radios.add(yesB);
             radios.add(noB);
             c.gridx = COL_ALLOW;
-            c.weightx = 0.0;
+            c.weightx = showTrustColumn ? W_ALLOW_WITH_TRUST : W_ALLOW_NO_TRUST;
             c.fill = GridBagConstraints.BOTH;
             grid.add(radios, c);
 
