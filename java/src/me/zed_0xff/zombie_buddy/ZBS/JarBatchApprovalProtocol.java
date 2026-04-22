@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.SerializedName;
 
 /**
@@ -21,10 +20,7 @@ public final class JarBatchApprovalProtocol {
 
     static final String HDR_REQ  = "ZB_BATCH_V6";
     static final String HDR_RESP = "ZB_BATCH_V3_OUT";
-    private static final Gson JSON = new GsonBuilder()
-        .setPrettyPrinting()
-        .disableHtmlEscaping()
-        .create();
+    private static final Gson JSON = ZbGson.PRETTY;
 
     static final String TOK_ALLOW_PERSIST = "ALLOW_PERSIST";
     static final String TOK_ALLOW_SESSION = "ALLOW_SESSION";

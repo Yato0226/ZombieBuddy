@@ -17,7 +17,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.gson.JsonPrimitive;
 
 /**
  * Persistent Java-mod JAR allow/deny decisions under {@code ~/.zombie_buddy/}.
@@ -243,13 +242,7 @@ public final class JavaModApprovalsStore {
             JsonObject root;
             if (Files.exists(jp)) {
                 try {
-                    String existing = Files.readString(jp, StandardCharsets.UTF_8).trim();
-                    if (existing.isEmpty()) {
-                        root = new JsonObject();
-                    } else {
-                        JsonElement parsed = JsonParser.parseString(existing);
-                        root = parsed.isJsonObject() ? parsed.getAsJsonObject() : new JsonObject();
-                    }
+                    root = parseRootObject(Files.readString(jp, StandardCharsets.UTF_8).trim());
                 } catch (Exception e) {
                     Logger.warn("Approvals JSON unreadable; rewriting: " + e);
                     root = new JsonObject();
@@ -263,7 +256,7 @@ public final class JavaModApprovalsStore {
             Map<SteamID64, String> knownNames = SteamAuthorNames.loadSteamIdToDisplayName();
             root.add(KEY_JAR_DECISIONS, jarDecisionsToJson(table, decisionModIds, decisionAuthors, knownNames));
             root.add(KEY_AUTHORS, authorsToJson(authors, knownNames));
-            Files.writeString(jp, GsonPretty.format(root), StandardCharsets.UTF_8);
+            Files.writeString(jp, ZbGson.PRETTY.toJson(root), StandardCharsets.UTF_8);
             int written = table == null ? 0 : table.decisionCount();
             int authorCount = authors == null ? 0 : authors.size();
             Logger.info("Java mod approvals JSON written to " + jp + ": " + written
@@ -300,7 +293,7 @@ public final class JavaModApprovalsStore {
                 Collections.sort(sorted);
                 for (String mid : sorted) {
                     if (mid != null && !mid.isEmpty()) {
-                        modIds.add(new JsonPrimitive(mid));
+                        modIds.add(mid);
                     }
                 }
             }
@@ -340,7 +333,7 @@ public final class JavaModApprovalsStore {
             List<String> sortedKeys = new ArrayList<>(ae.keys);
             Collections.sort(sortedKeys);
             for (String k : sortedKeys) {
-                keyElems.add(new JsonPrimitive(k));
+                keyElems.add(k);
             }
             a.add(KEY_KEYS, keyElems);
             String resolvedName = ae.name;
@@ -389,9 +382,9 @@ public final class JavaModApprovalsStore {
                 if (midsEl != null && midsEl.isJsonArray()) {
                     Set<String> out = decisionModIds.computeIfAbsent(workshopItemId, k -> new LinkedHashSet<>());
                     for (JsonElement item : midsEl.getAsJsonArray()) {
-                        if (item != null && item.isJsonPrimitive() && item.getAsJsonPrimitive().isString()) {
-                            String mid = item.getAsString().trim();
-                            if (!mid.isEmpty()) out.add(mid);
+                        String mid = optTrimString(item);
+                        if (mid != null) {
+                            out.add(mid);
                         }
                     }
                 }
@@ -399,18 +392,9 @@ public final class JavaModApprovalsStore {
                 JsonElement authorEl = row.get(KEY_AUTHOR);
                 if (authorEl != null && authorEl.isJsonObject()) {
                     JsonObject author = authorEl.getAsJsonObject();
-                    JsonElement idj = author.get(KEY_ID);
-                    if (idj != null && idj.isJsonPrimitive() && idj.getAsJsonPrimitive().isString()) {
-                        String id = idj.getAsString().trim();
-                        if (!id.isEmpty()) {
-                            String name = null;
-                            JsonElement namej = author.get(KEY_NAME);
-                            if (namej != null && namej.isJsonPrimitive() && namej.getAsJsonPrimitive().isString()) {
-                                String v = namej.getAsString().trim();
-                                if (!v.isEmpty()) name = v;
-                            }
-                            decisionAuthors.put(workshopItemId, new DecisionAuthor(new SteamID64(id), name));
-                        }
+                    String id = optTrimString(author, KEY_ID);
+                    if (id != null) {
+                        decisionAuthors.put(workshopItemId, new DecisionAuthor(new SteamID64(id), optTrimString(author, KEY_NAME)));
                     }
                 }
 
@@ -418,9 +402,9 @@ public final class JavaModApprovalsStore {
                 if (innerEl == null || !innerEl.isJsonObject()) continue;
                 JsonObject inner = innerEl.getAsJsonObject();
                 for (Map.Entry<String, JsonElement> he : inner.entrySet()) {
-                    JsonElement jv = he.getValue();
-                    if (jv == null || !jv.isJsonPrimitive() || !jv.getAsJsonPrimitive().isBoolean()) continue;
-                    into.put(workshopItemId, he.getKey(), jv.getAsBoolean() ? Loader.DECISION_YES : Loader.DECISION_NO);
+                    Boolean allow = optBoolean(he.getValue());
+                    if (allow == null) continue;
+                    into.put(workshopItemId, he.getKey(), allow ? Loader.DECISION_YES : Loader.DECISION_NO);
                 }
             }
         }
@@ -436,26 +420,16 @@ public final class JavaModApprovalsStore {
                 JsonElement nodeEl = e.getValue();
                 if (steamId == null || steamId.isEmpty() || nodeEl == null || !nodeEl.isJsonObject()) continue;
                 JsonObject node = nodeEl.getAsJsonObject();
-                boolean trust = false;
-                JsonElement tj = node.get(KEY_TRUST);
-                if (tj != null && tj.isJsonPrimitive() && tj.getAsJsonPrimitive().isBoolean()) {
-                    trust = tj.getAsBoolean();
-                }
-                String name = null;
-                JsonElement nj = node.get(KEY_NAME);
-                if (nj != null && nj.isJsonPrimitive() && nj.getAsJsonPrimitive().isString()) {
-                    String v = nj.getAsString().trim();
-                    if (!v.isEmpty()) name = v;
-                }
+                Boolean t = optBoolean(node.get(KEY_TRUST));
+                boolean trust = Boolean.TRUE.equals(t);
+                String name = optTrimString(node, KEY_NAME);
                 Set<String> keys = new LinkedHashSet<>();
                 JsonElement kj = node.get(KEY_KEYS);
                 if (kj != null && kj.isJsonArray()) {
                     for (JsonElement item : kj.getAsJsonArray()) {
-                        if (item != null && item.isJsonPrimitive() && item.getAsJsonPrimitive().isString()) {
-                            String k = item.getAsString().trim();
-                            if (!k.isEmpty()) {
-                                keys.add(k.toLowerCase(Locale.ROOT));
-                            }
+                        String k = optTrimString(item);
+                        if (k != null) {
+                            keys.add(k.toLowerCase(Locale.ROOT));
                         }
                     }
                 }
@@ -463,6 +437,34 @@ public final class JavaModApprovalsStore {
             }
         }
 
+    }
+
+    private static JsonObject parseRootObject(String trimmed) {
+        if (trimmed == null || trimmed.isEmpty()) {
+            return new JsonObject();
+        }
+        JsonElement el = JsonParser.parseString(trimmed);
+        return el.isJsonObject() ? el.getAsJsonObject() : new JsonObject();
+    }
+
+    /** Non-empty trimmed string, or {@code null}. */
+    private static String optTrimString(JsonElement e) {
+        if (e == null || !e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            return null;
+        }
+        String s = e.getAsString().trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    private static String optTrimString(JsonObject o, String key) {
+        return o == null ? null : optTrimString(o.get(key));
+    }
+
+    private static Boolean optBoolean(JsonElement e) {
+        if (e == null || !e.isJsonPrimitive() || !e.getAsJsonPrimitive().isBoolean()) {
+            return null;
+        }
+        return e.getAsBoolean();
     }
 
     private static boolean isWorkshopItemIdKey(String key) {
