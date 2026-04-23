@@ -114,12 +114,15 @@ public class Agent {
             Hooks.register("onGameInitComplete", Agent::onGameInitCompleteExitHook);
         }
 
+        // Expose classes with @Exposer.LuaClass annotation from main package
+        Exposer.exposeAnnotatedClasses(ZombieBuddy.class.getPackage().getName());
+
         if (arguments.containsKey("expose_classes")) {
             String[] classes = arguments.get("expose_classes").split(",");
             for (String className : classes) {
                 className = className.trim();
                 if (!className.isEmpty()) {
-                    Exposer.exposeClassToLua(className);
+                    Exposer.exposeClass(className);
                 }
             }
         }
@@ -171,4 +174,5 @@ public class Agent {
             this.packageName = packageName;
         }
     }
+
 }

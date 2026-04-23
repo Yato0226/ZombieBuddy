@@ -46,7 +46,8 @@ public class Patch_log_overlay {
     public static class Patch_write {
         @Patch.OnEnter
         public static void enter(byte [] buf, int off, int len) {
-            LogOverlay.write(buf, off, len);
+            if (buf == null || off < 0 || len < 0) return;
+            LogOverlay.addLine(new String(buf, off, len));
         }
     }
 }

@@ -11,10 +11,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
-import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ClassInfo;
-import io.github.classgraph.ScanResult;
 import se.krka.kahlua.integration.annotations.LuaMethod;
+import se.krka.kahlua.vm.KahluaTable;
 
 import zombie.Lua.LuaManager;
 
@@ -25,20 +23,26 @@ public class Exposer {
      *
      * Usage:
      *   @Exposer.LuaClass
-     *   public class MyLuaApi { ... }
+     *   public class MyApi { ... }  // Accessible as MyApi
+     *
+     *   @Exposer.LuaClass(name = "ZombieBuddy.Utils")
+     *   public class Utils { ... }  // Accessible as ZombieBuddy.Utils
+     *
+     *   @Exposer.LuaClass(name = "ZB.API.Logger")
+     *   public class MyLogger { ... }  // Accessible as ZB.API.Logger (nested tables)
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
     public @interface LuaClass {
+        /** Optional Lua name. Dots create nested tables. Default: class simple name. */
+        String name() default "";
     }
 
-    private static final HashSet<Class<?>> g_exposed_classes = new HashSet<>();
+    // Class -> Lua name (may contain dots for nesting, empty = use simple name)
+    private static final HashMap<Class<?>, String> g_exposed_classes = new HashMap<>();
     private static final HashMap<Class<?>, HashSet<String>> g_exposed_methods = new HashMap<>();
-
-    /** Classes that have at least one method with @LuaMethod(global=true); may or may not be in g_exposed_classes. */
     private static final HashSet<Class<?>> g_classesWithGlobalLuaMethod = new HashSet<>();
 
-    /** Returns true if the class has any public method with {@code @LuaMethod(global = true)}. */
     public static boolean hasGlobalLuaMethod(Class<?> cls) {
         for (Method m : cls.getMethods()) {
             LuaMethod ann = m.getAnnotation(LuaMethod.class);
@@ -59,53 +63,62 @@ public class Exposer {
         return new ArrayList<>(g_classesWithGlobalLuaMethod);
     }
 
-    // just call me once and the class will be exposed forever (until the game app is closed/restarted ofcourse)
     public static void exposeClassToLua(Class<?> cls) {
-        if (g_exposed_classes.contains(cls)) {
+        Logger.warn("exposeClassToLua() method is deprecated, use exposeClass() or @LuaClass annotation instead");
+        exposeClass(cls, null);
+    }
+
+    public static boolean exposeClassToLua(String className) {
+        Logger.warn("exposeClassToLua() method is deprecated, use exposeClass() or @LuaClass annotation instead");
+        return exposeClass(className);
+    }
+
+    public static void exposeClass(Class<?> cls) {
+        exposeClass(cls, null);
+    }
+
+    public static void exposeClass(Class<?> cls, String name) {
+        if (g_exposed_classes.containsKey(cls)) {
             return;
         }
-        g_exposed_classes.add(cls);
+        g_exposed_classes.put(cls, name != null ? name : "");
 
-        var exposer = LuaManager.exposer;
-        if (exposer != null) {
-            // mods land here because lua context is already created and exposeAll() is already called
-            Logger.info("Exposing class to Lua: " + cls.getName());
-            exposer.setExposed(cls);
-            exposer.exposeLikeJavaRecursively(cls, LuaManager.env);
+        // If exposer is already available, expose immediately (for mods loaded after initial exposure)
+        if (LuaManager.exposer != null && LuaManager.env != null) {
+            exposeClassNow(cls);
         }
     }
 
-    /** Resolves the class by name and exposes it to Lua. Returns true if the class was found and exposed, false otherwise. */
-    public static boolean exposeClassToLua(String className) {
+    private static void exposeClassNow(Class<?> cls) {
+        var exposer = LuaManager.exposer;
+        var env = LuaManager.env;
+        String name = g_exposed_classes.get(cls);
+        String simpleName = cls.getSimpleName();
+
+        exposer.setExposed(cls);
+        exposer.exposeLikeJavaRecursively(cls, env);
+
+        if (name != null && !name.isEmpty()) {
+            Object classObj = env.rawget(simpleName);
+            if (classObj != null) {
+                setNestedValue(env, name, classObj);
+                Logger.info("Exposing class to Lua: " + name);
+            }
+        } else {
+            Logger.info("Exposing class to Lua: " + simpleName);
+        }
+    }
+
+    public static boolean exposeClass(String className) {
         Class<?> cls = Accessor.findClass(className);
         if (cls == null) {
             Logger.warn("exposeClass(\"" + className + "\"): class not found");
             return false;
         }
-        exposeClassToLua(cls);
+        exposeClass(cls);
         return true;
     }
 
-    public static void exposeClass(Class<?> cls) { exposeClassToLua(cls); }
-    public static boolean exposeClass(String className) { return exposeClassToLua(className); }
-
-    private static void exposeMethodNow(Class<?> cls, String methodName) {
-        var exposer = LuaManager.exposer;
-        if (exposer != null) {
-            Logger.info("Exposing method " + cls.getName() + "." + methodName + "()");
-            for (var method : cls.getMethods()) {
-                if (method.getName().equals(methodName)) {
-                    try {
-                        exposer.exposeMethod(cls, method, method.getName(), LuaManager.env);
-                    } catch (Exception e) {
-                        Logger.error("exposeMethod(" + cls.getName() + ", " + method.getName() + "): " + e.getMessage());
-                    }
-                }
-            }
-        }
-    }
-
-    // B42.15 introduced @HiddenFromLua annotation, exposeMethod() effectively undoes that for specific methods.
     public static void exposeMethod(String className, String methodName) {
         Class<?> cls = Accessor.findClass(className);
         if (cls == null) {
@@ -113,33 +126,35 @@ public class Exposer {
             return;
         }
         g_exposed_methods.computeIfAbsent(cls, k -> new HashSet<>()).add(methodName);
-        exposeMethodNow(cls, methodName);
     }
 
     public static List<Class<?>> getExposedClasses() {
-        return new ArrayList<>(g_exposed_classes);
+        return new ArrayList<>(g_exposed_classes.keySet());
     }
 
     public static boolean isClassExposed(Class<?> cls) {
-        return g_exposed_classes.contains(cls);
+        return g_exposed_classes.containsKey(cls);
     }
 
-    /**
-     * Runs the exposure machinery: exposes all classes in {@link #getExposedClasses()}
-     * and global functions from {@link #getClassesWithGlobalLuaMethod()} using the
-     * game's LuaManager.exposer. Call this from the Exposer.exposeAll patch OnEnter.
-     */
-    public static void beforeExposeAll() {
+    public static void afterExposeAll() {
         var exposer = LuaManager.exposer;
         if (exposer == null) {
-            Logger.info("Error! LuaManager.exposer is null!");
+            Logger.error("LuaManager.exposer is null!");
             return;
         }
-        for (Class<?> cls : getExposedClasses()) {
-            Logger.info("Exposing class " + cls.getName());
-            exposer.setExposed(cls);
+        var env = LuaManager.env;
+        if (env == null) {
+            Logger.error("LuaManager.env is null!");
+            return;
         }
-        for (Class<?> cls : getClassesWithGlobalLuaMethod()) {
+
+        // Expose classes
+        for (Class<?> cls : g_exposed_classes.keySet()) {
+            exposeClassNow(cls);
+        }
+
+        // Expose global functions
+        for (Class<?> cls : g_classesWithGlobalLuaMethod) {
             Object instance = newInstance(cls);
             if (instance != null) {
                 try {
@@ -150,20 +165,52 @@ public class Exposer {
                 }
             }
         }
-    }
 
-    public static void afterExposeAll() {
-        // if individual method is exposed in beforeExposeAll(), then PZ Exposer thinks that whole class is already exposed,
-        // and skips exposing the rest of the methods in that class.
+        // Expose individual methods (for @HiddenFromLua overrides)
         for (var entry : g_exposed_methods.entrySet()) {
             Class<?> cls = entry.getKey();
-            for (String methodName : entry.getValue() ) {
-                exposeMethodNow(cls, methodName);
+            for (String methodName : entry.getValue()) {
+                Logger.info("Exposing method " + cls.getName() + "." + methodName + "()");
+                for (var method : cls.getMethods()) {
+                    if (method.getName().equals(methodName)) {
+                        try {
+                            exposer.exposeMethod(cls, method, method.getName(), env);
+                        } catch (Exception e) {
+                            Logger.error("exposeMethod(" + cls.getName() + ", " + methodName + "): " + e.getMessage());
+                        }
+                    }
+                }
             }
         }
     }
 
-    /** Creates a no-arg instance of the class, or null if abstract/interface or no no-arg constructor. */
+    /**
+     * Sets a value in nested tables. Creates intermediate tables as needed.
+     * Example: setNestedValue(env, "ZB.API.Logger", obj) creates ZB.API.Logger = obj
+     */
+    private static void setNestedValue(KahluaTable root, String path, Object value) {
+        if (root == null || path == null || value == null) return;
+
+        String[] parts = path.split("\\.");
+        KahluaTable current = root;
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            Object next = current.rawget(parts[i]);
+            if (next == null) {
+                next = LuaManager.platform.newTable();
+                current.rawset(parts[i], next);
+            }
+            if (next instanceof KahluaTable) {
+                current = (KahluaTable) next;
+            } else {
+                Logger.error("Cannot create nested table at " + parts[i] + " - already exists as non-table");
+                return;
+            }
+        }
+
+        current.rawset(parts[parts.length - 1], value);
+    }
+
     public static Object newInstance(Class<?> cls) {
         try {
             if (Modifier.isAbstract(cls.getModifiers()) || cls.isInterface()) {
@@ -172,6 +219,33 @@ public class Exposer {
             return cls.getDeclaredConstructor().newInstance();
         } catch (Throwable t) {
             return null;
+        }
+    }
+
+    public static void exposeAnnotatedClasses(String packageName) {
+        try (var scanResult = new io.github.classgraph.ClassGraph()
+                .acceptPackages(packageName)
+                .enableAnnotationInfo()
+                .scan()) {
+            exposeAnnotatedClasses(scanResult, null);
+        }
+    }
+
+    public static void exposeAnnotatedClasses(io.github.classgraph.ScanResult scanResult, String packageName) {
+        for (var classInfo : scanResult.getClassesWithAnnotation(LuaClass.class.getName())) {
+            if (packageName != null && !classInfo.getPackageName().equals(packageName)) {
+                Logger.error("Class " + classInfo.getName() + " is annotated with @LuaClass but is not in the exact package "
+                        + packageName + ", skipping exposure");
+                continue;
+            }
+            try {
+                Class<?> cls = classInfo.loadClass();
+                LuaClass ann = cls.getAnnotation(LuaClass.class);
+                String name = (ann != null) ? ann.name() : "";
+                exposeClass(cls, name);
+            } catch (Exception e) {
+                Logger.error("Error exposing Lua class " + classInfo.getName() + ": " + e.getMessage());
+            }
         }
     }
 }

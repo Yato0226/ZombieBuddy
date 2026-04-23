@@ -17,6 +17,7 @@ import zombie.ui.UIFont;
  * Each line fades independently based on its timestamp.
  * Toggle with Ctrl+` (backtick/grave accent).
  */
+@Exposer.LuaClass(name = "ZombieBuddy.LogOverlay")
 public class LogOverlay {
     private static final int MARGIN_LEFT       = 10;
     private static final int MARGIN_BOTTOM     = 10;
@@ -106,11 +107,6 @@ public class LogOverlay {
         while (lines.size() > maxLines) {
             lines.removeFirst();
         }
-    }
-    
-    public static void write(byte[] buf, int off, int len) {
-        if (buf == null || off < 0 || len < 0) return;
-        addLine(new String(buf, off, len));
     }
     
     public static void clear() {

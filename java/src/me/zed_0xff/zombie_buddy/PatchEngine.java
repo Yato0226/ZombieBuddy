@@ -714,18 +714,7 @@ public final class PatchEngine {
                 }
             }
 
-            for (ClassInfo classInfo : scanResult.getClassesWithAnnotation(Exposer.LuaClass.class.getName())) {
-                if (!classInfo.getPackageName().equals(packageName)) {
-                    Logger.error("Class " + classInfo.getName() + " is annotated with @LuaClass but is not in the exact package " + packageName + ", skipping exposure");
-                    continue;
-                }
-                try {
-                    Class<?> cls = classInfo.loadClass();
-                    Exposer.exposeClassToLua(cls);
-                } catch (Exception e) {
-                    Logger.error("Error exposing Lua class " + classInfo.getName() + ": " + e.getMessage());
-                }
-            }
+            Exposer.exposeAnnotatedClasses(scanResult, packageName);
 
             for (ClassInfo classInfo : scanResult.getAllClasses()) {
                 if (!classInfo.getPackageName().equals(packageName)) {

@@ -188,7 +188,7 @@ For runtime class exposure:
 import me.zed_0xff.zombie_buddy.Exposer;
 
 // In your initialization code
-Exposer.exposeClassToLua(MyCustomClass.class);
+Exposer.exposeClass(MyCustomClass.class);
 ```
 
 ---
