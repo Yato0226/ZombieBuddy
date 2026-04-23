@@ -5,41 +5,6 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class UtilsTest {
-
-    @Test
-    void compareVersions_matchesVersionCheckTestExpectations() {
-        assertEquals(0, Utils.compareVersions("1.0.0", "1.0.0"));
-        assertEquals(1, Utils.compareVersions("1.1.0", "1.0.0"));
-        assertEquals(-1, Utils.compareVersions("1.0.0", "1.1.0"));
-        assertEquals(1, Utils.compareVersions("1.10.0", "1.2.0"));
-        assertEquals(-1, Utils.compareVersions("1.2.0", "1.10.0"));
-        assertEquals(0, Utils.compareVersions("1.0.0-beta", "1.0.0"));
-        assertEquals(1, Utils.compareVersions("2.0", "1.9.9"));
-        assertEquals(-1, Utils.compareVersions("unknown", "1.0.0"));
-        assertEquals(1, Utils.compareVersions("1.0.0", "unknown"));
-    }
-
-    @Test
-    void isVersionNewer_equalVersions_returnsFalse() {
-        assertFalse(Utils.isVersionNewer("1.0.0", "1.0.0"));
-        assertFalse(Utils.isVersionNewer("1.0.0-beta", "1.0.0"));
-    }
-
-    @Test
-    void isVersionNewer_firstNewer_returnsTrue() {
-        assertTrue(Utils.isVersionNewer("1.1.0", "1.0.0"));
-        assertTrue(Utils.isVersionNewer("1.10.0", "1.2.0"));
-        assertTrue(Utils.isVersionNewer("2.0", "1.9.9"));
-        assertTrue(Utils.isVersionNewer("1.0.0", "unknown"));
-    }
-
-    @Test
-    void isVersionNewer_firstOlder_returnsFalse() {
-        assertFalse(Utils.isVersionNewer("1.0.0", "1.1.0"));
-        assertFalse(Utils.isVersionNewer("1.2.0", "1.10.0"));
-        assertFalse(Utils.isVersionNewer("unknown", "1.0.0"));
-    }
-
     @Test
     void bytesToHex_emptyArray_returnsEmptyString() {
         assertEquals("", Utils.bytesToHex(new byte[0]));

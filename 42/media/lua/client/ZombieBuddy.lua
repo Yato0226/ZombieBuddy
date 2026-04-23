@@ -1,5 +1,10 @@
 local hasShownNotification = false
 
+if ZombieBuddy and ZombieBuddy.LogOverlay then
+    ZombieBuddy.LogOverlay.addFilter("can't find mod.info in mod dir")
+    ZombieBuddy.LogOverlay.addFilter("not found in ZONE_MAP")
+end
+
 local function checkZombieBuddyInstallation()
     -- Only check once
     if hasShownNotification then

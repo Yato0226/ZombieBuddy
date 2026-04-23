@@ -2,11 +2,11 @@ package me.zed_0xff.zombie_buddy;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.HashSet;
 
 import org.lwjgl.glfw.GLFW;
 
 import zombie.core.Core;
-import zombie.core.SpriteRenderer;
 import zombie.GameTime;
 import zombie.ui.TextManager;
 import zombie.ui.UIFont;
@@ -39,6 +39,7 @@ public class LogOverlay {
     private static Field f_renderThisFrame = null;
     private static long pausedAt = 0;  // When game was paused (0 = not paused)
     private static boolean wasPaused = false;
+    private static final HashSet<String> filters = new HashSet<>();
 
     public static void enable() {
         enabled = true;
@@ -54,6 +55,18 @@ public class LogOverlay {
     
     public static void toggle() {
         enabled = !enabled;
+    }
+
+    public static void addFilter(String filter) {
+        filters.add(filter);
+    }
+
+    public static void removeFilter(String filter) {
+        filters.remove(filter);
+    }
+
+    public static void clearFilters() {
+        filters.clear();
     }
     
     public static void checkOsdToggle() {
@@ -102,6 +115,12 @@ public class LogOverlay {
     
     public static void addLine(String text) {
         if (text == null || text.isEmpty()) return;
+
+        for (String filter : filters) {
+            if (text.contains(filter)) {
+                return;
+            }
+        }
         
         lines.addLast(new Line(text, System.currentTimeMillis()));
         while (lines.size() > maxLines) {

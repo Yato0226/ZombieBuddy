@@ -1,6 +1,7 @@
 package me.zed_0xff.zombie_buddy;
 
 import java.io.File;
+import java.util.ArrayList;
 
 import se.krka.kahlua.vm.JavaFunction;
 import se.krka.kahlua.vm.LuaClosure;
@@ -66,6 +67,10 @@ public class ZombieBuddy {
             tbl.rawset("persisted", s.persisted);
         }
         return tbl;
+    }
+
+    public static ArrayList<String> getJavaMods() {
+        return Loader.getJavaMods();
     }
 
     public static String getClosureFilename(Object obj) {

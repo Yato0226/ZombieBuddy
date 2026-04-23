@@ -26,7 +26,7 @@ public final class Utils {
      *
      * @param v1 First version string
      * @param v2 Second version string
-     * @return Negative if v1 &lt; v2, positive if v1 &gt; v2, zero if v1 == v2
+     * @return Negative if v1 < v2, positive if v1 > v2, zero if v1 == v2
      */
     public static int compareVersions(String v1, String v2) {
         if (v1 == null || v1.equals("unknown")) return v2 == null || v2.equals("unknown") ? 0 : -1;

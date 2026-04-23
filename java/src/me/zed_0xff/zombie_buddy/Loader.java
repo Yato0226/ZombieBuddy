@@ -152,7 +152,7 @@ public class Loader {
     }
 
     /**
-     * Per-modId load/decision snapshot captured at loadMods() time so Lua
+     * Per-modId load/decision snapshot captured at loadJavaMods() time so Lua
      * (and other callers) can display "loaded / blocked / session / persisted"
      * next to each mod in the UI. Keyed by modId; for multi-dir B42 mods the
      * version-dir entry (which typically carries the JAR) overwrites the
@@ -178,6 +178,10 @@ public class Loader {
 
     static JavaModLoadState getJarLoadState(String modId) {
         return modId == null ? null : g_jarLoadStatus.get(modId);
+    }
+
+    static ArrayList<String> getJavaMods() {
+        return new ArrayList<>(g_jarLoadStatus.keySet());
     }
 
     /** Shown on the loading screen while batch or native approval UI is blocking. */
@@ -288,7 +292,7 @@ public class Loader {
             return false;
         }
 
-        // policy=prompt: decisions come from approvePendingMods() in loadMods(); should not reach here.
+        // policy=prompt: decisions come from approvePendingMods() in loadJavaMods(); should not reach here.
         Logger.warn("No approval decision for " + modId + " (hash " + hash + ") — denying session-only.");
         g_sessionJarDecisions.put(hash, DECISION_NO);
         return false;
@@ -350,7 +354,7 @@ public class Loader {
         return ae != null && ae.trust;
     }
 
-    public static void loadMods(ArrayList<String> mods) {
+    public static void loadJavaMods(ArrayList<String> mods) {
         ArrayList<JavaModInfo> jModInfos = new ArrayList<>();
         ArrayList<String> jModIds = new ArrayList<>();
 
