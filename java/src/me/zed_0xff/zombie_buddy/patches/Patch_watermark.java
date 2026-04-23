@@ -7,18 +7,18 @@ import zombie.ui.TextManager;
 import zombie.ui.UIFont;
 
 public class Patch_watermark {
-    public static boolean m_draw_watermark = false;
+    public static boolean _draw_watermark = false;
 
     @Patch(className = "zombie.GameWindow", methodName = "init")
-    class Patch_GameWindow {
+    class Patch_GameWindow_init {
         @Patch.OnEnter
         static void enter() {
-            m_draw_watermark = true;
+            _draw_watermark = true;
         }
 
         @Patch.OnExit
         static void exit() {
-            m_draw_watermark = false;
+            _draw_watermark = false;
             Hooks.run("onGameInitComplete");
         }
     }
@@ -29,29 +29,29 @@ public class Patch_watermark {
         if (newVersion != null) {
             watermark += " (New version " + newVersion + " installed. Please restart the game)";
         }
-        var font = UIFont.Small;
+        var font    = UIFont.Small;
         var textMgr = TextManager.instance;
-        var textW = textMgr.MeasureStringX(font, watermark);
-        var textH = textMgr.MeasureStringY(font, watermark);
-        var scrW = Core.getInstance().getScreenWidth();
-        var scrH = Core.getInstance().getScreenHeight();
+        var textW   = textMgr.MeasureStringX(font, watermark);
+        var textH   = textMgr.MeasureStringY(font, watermark);
+        var scrW    = Core.getInstance().getScreenWidth();
+        var scrH    = Core.getInstance().getScreenHeight();
         textMgr.DrawString(font, scrW - textW, scrH - textH, watermark, 1.0, 1.0, 1.0, 0.25);
     }
 
-    @Patch(className = "zombie.ui.TextManager", methodName = "DrawStringCentre")
-    class Patch_DrawStringCentre {
-        @Patch.OnExit
-        static void exit() {
-            if (m_draw_watermark)
+    @Patch(className = "zombie.core.Core", methodName = "EndFrameUI")
+    class Patch_Core_EndFrameUI {
+        @Patch.OnEnter
+        static void enter() {
+            if (_draw_watermark)
                 draw_watermark();
         }
     }
     
-    @Patch(className = "zombie.gameStates.MainScreenState", methodName = "renderBackground")
-    class Patch_MainScreenState {
-        @Patch.OnExit
-        static void exit() {
-            draw_watermark();
-        }
-    }
+    // @Patch(className = "zombie.gameStates.MainScreenState", methodName = "renderBackground")
+    // class Patch_MainScreenState_renderBackground {
+    //     @Patch.OnExit
+    //     static void exit() {
+    //         draw_watermark();
+    //     }
+    // }
 }

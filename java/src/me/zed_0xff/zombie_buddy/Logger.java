@@ -11,6 +11,26 @@ public class Logger {
     private static PrintStream out = System.out;
     private static PrintStream err = System.err;
 
+    private static void out_msg(String msg) {
+        msg = PREFIX + msg;
+        try {
+            System.out.println(msg);
+        } catch (Exception e) { // might fail on game boot
+            out.println(msg);
+            LogOverlay.addLine(msg);
+        }
+    }
+
+    private static void err_msg(String msg) {
+        msg = PREFIX + msg;
+        try {
+            System.err.println(msg);
+        } catch (Exception e) { // see above
+            err.println(msg);
+            LogOverlay.addLine(msg);
+        }
+    }
+
     public static void trace(String message, Object... args) {
         if (Loader.g_verbosity < 2) return;
 
@@ -18,12 +38,7 @@ public class Logger {
             message += " " + formatArgs(args);
         }
 
-        message = PREFIX + "[t] " + message;
-        try {
-            System.out.println(message);
-        } catch (Exception e) { // might fail on game boot
-            out.println(message);
-        }
+        out_msg("[t] " + message);
     }
 
     public static void debug(String message, Object... args) {
@@ -33,39 +48,19 @@ public class Logger {
             message += " " + formatArgs(args);
         }
 
-        message = PREFIX + "[d] " + message;
-        try {
-            System.out.println(message);
-        } catch (Exception e) { // might fail on game boot
-            out.println(message);
-        }
+        out_msg("[d] " + message);
     }
 
     public static void info(String message) {
-        message = PREFIX + message;
-        try {
-            System.out.println(message);
-        } catch (Exception e) { // might fail on game boot
-            out.println(message);
-        }
+        out_msg(message);
     }
 
     public static void warn(String message) {
-        message = PREFIX + "[?] " + message;
-        try {
-            System.err.println(message);
-        } catch (Exception e) { // see above
-            err.println(message);
-        }
+        err_msg("[?] " + message);
     }
 
     public static void error(String message) {
-        message = PREFIX + "[!] " + message;
-        try {
-            System.err.println(message);
-        } catch (Exception e) { // see above
-            err.println(message);
-        }
+        err_msg("[!] " + message);
     }
 
     /** Format an object for logging: strings quoted, arrays expanded, length capped. */
