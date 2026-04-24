@@ -5,16 +5,15 @@ plugins {
     id 'io.github.zed-0xff.zb-gradle-plugin' version '1.0.1'
 }
 
-// Game classpath - list of JARs or directories provided via command line (-PgameClasspath=path1,path2,path3)
+// Game classpath: comma-separated JARs or dirs. Set via -PgameClasspath=... and/or env PZ_CLASSPATH.
 // Optional: only needed for compilation, not for running tests
-def gameClasspathParam = project.findProperty('gameClasspath')
+def rawGameClasspath = project.findProperty('gameClasspath')?.toString()?.trim()
+if (!rawGameClasspath) {
+    rawGameClasspath = System.getenv('PZ_CLASSPATH')?.trim()
+}
 def GAME_CLASSPATH = []
-
-if (gameClasspathParam) {
-    // Split by comma and convert to file objects
-    GAME_CLASSPATH = gameClasspathParam.split(',').collect { path ->
-        file(path.trim())
-    }
+if (rawGameClasspath) {
+    GAME_CLASSPATH = rawGameClasspath.split(',').collect { path -> file(path.trim()) }
 }
 
 // Read version from VERSION file
@@ -304,10 +303,10 @@ compileJavaTask.doFirst {
         def outputDir = destinationDirectory.get().asFile
         if (!hasClassFiles(outputDir)) {
             throw new RuntimeException(
-                "gameClasspath must be provided for compilation via -PgameClasspath=<path1>,<path2>,... " +
-                "(comma-separated list of JARs or directories).\n" +
+                "Game classpath must be set: -PgameClasspath=<path1>,<path2>,... and/or env PZ_CLASSPATH " +
+                "(comma-separated JARs or directories).\n" +
                 "Example: gradle build -PgameClasspath=../../../../../42.13/java/projectzomboid.jar\n" +
-                "Note: Tests can run without gameClasspath if classes are already compiled."
+                "Note: Tests can run without game classpath if classes are already compiled."
             )
         }
     }
