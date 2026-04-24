@@ -1,4 +1,12 @@
-package me.zed_0xff.zombie_buddy;
+package me.zed_0xff.zombie_buddy.frontend;
+
+import me.zed_0xff.zombie_buddy.Accessor;
+import me.zed_0xff.zombie_buddy.JarApprovalOutcome;
+import me.zed_0xff.zombie_buddy.JarBatchApprovalProtocol;
+import me.zed_0xff.zombie_buddy.JarDecisionTable;
+import me.zed_0xff.zombie_buddy.Loader;
+import me.zed_0xff.zombie_buddy.Logger;
+import me.zed_0xff.zombie_buddy.ModApprovalsStore;
 
 import zombie.core.Core;
 import zombie.core.GameVersion;

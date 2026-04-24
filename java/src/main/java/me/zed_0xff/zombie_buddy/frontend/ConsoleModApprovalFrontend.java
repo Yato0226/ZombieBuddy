@@ -1,4 +1,9 @@
-package me.zed_0xff.zombie_buddy;
+package me.zed_0xff.zombie_buddy.frontend;
+
+import me.zed_0xff.zombie_buddy.JarBatchApprovalProtocol;
+import me.zed_0xff.zombie_buddy.JarDecisionTable;
+import me.zed_0xff.zombie_buddy.Loader;
+import me.zed_0xff.zombie_buddy.Logger;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;

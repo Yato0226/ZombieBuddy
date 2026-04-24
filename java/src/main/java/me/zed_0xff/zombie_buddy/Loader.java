@@ -21,6 +21,8 @@ import zombie.core.znet.SteamUtils;
 import zombie.gameStates.ChooseGameInfo;
 
 import me.zed_0xff.zombie_buddy.ModApprovalsStore.AuthorEntry;
+import me.zed_0xff.zombie_buddy.frontend.ModApprovalFrontend;
+import me.zed_0xff.zombie_buddy.frontend.ModApprovalFrontends;
 
 public class Loader {
     public static Instrumentation g_instrumentation;
@@ -82,8 +84,8 @@ public class Loader {
     static Set<File> g_known_jars = new HashSet<>();
 
     // JAR approval decisions keyed by sha256 hash.
-    static final String DECISION_YES = "yes";
-    static final String DECISION_NO  = "no";
+    public static final String DECISION_YES = "yes";
+    public static final String DECISION_NO  = "no";
 
     // Persisted entries loaded from disk - the source of truth for saving
     private static List<ModApprovalsStore.ModEntry> g_storedEntries = new ArrayList<>();
@@ -122,11 +124,11 @@ public class Loader {
         }
     }
 
-    static void doLoadingWaitModApproval() {
+    public static void doLoadingWaitModApproval() {
         GameWindow.DoLoadingText(LOADING_WAIT_JAVA_MOD_APPROVAL);
     }
 
-    static void doLoadingModsDefault() {
+    public static void doLoadingModsDefault() {
         GameWindow.DoLoadingText(LOADING_MODS);
     }
 

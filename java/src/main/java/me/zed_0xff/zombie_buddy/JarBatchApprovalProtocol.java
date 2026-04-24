@@ -17,7 +17,7 @@ import com.google.gson.annotations.SerializedName;
 
 /**
  * JSON file protocol between {@link Loader} (game process) and
- * {@link BatchJarApprovalMain} (non-headless child JVM with Swing UI).
+ * {@link me.zed_0xff.zombie_buddy.frontend.BatchJarApprovalMain} (non-headless child JVM with Swing UI).
  */
 public final class JarBatchApprovalProtocol {
 
@@ -25,10 +25,10 @@ public final class JarBatchApprovalProtocol {
     static final String HDR_RESP = "ZB_BATCH_V6_OUT";
     private static final Gson JSON = ZBGson.PRETTY;
 
-    static final String TOK_ALLOW_PERSIST = "ALLOW_PERSIST";
-    static final String TOK_ALLOW_SESSION = "ALLOW_SESSION";
-    static final String TOK_DENY_PERSIST  = "DENY_PERSIST";
-    static final String TOK_DENY_SESSION  = "DENY_SESSION";
+    public static final String TOK_ALLOW_PERSIST = "ALLOW_PERSIST";
+    public static final String TOK_ALLOW_SESSION = "ALLOW_SESSION";
+    public static final String TOK_DENY_PERSIST  = "DENY_PERSIST";
+    public static final String TOK_DENY_SESSION  = "DENY_SESSION";
 
     public static final class Entry {
         @SerializedName("modKey")

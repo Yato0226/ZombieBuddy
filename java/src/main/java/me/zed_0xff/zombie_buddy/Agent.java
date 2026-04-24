@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.jar.JarFile;
 import zombie.core.Core;
 
+import me.zed_0xff.zombie_buddy.frontend.ModApprovalFrontends;
+
 public class Agent {
     public static final Map<String, String> arguments = new HashMap<>();
 

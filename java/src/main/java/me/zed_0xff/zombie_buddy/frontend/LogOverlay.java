@@ -1,4 +1,7 @@
-package me.zed_0xff.zombie_buddy;
+package me.zed_0xff.zombie_buddy.frontend;
+
+import me.zed_0xff.zombie_buddy.Accessor;
+import me.zed_0xff.zombie_buddy.Exposer;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.ConcurrentLinkedDeque;

@@ -1,5 +1,7 @@
 package me.zed_0xff.zombie_buddy;
 
+import me.zed_0xff.zombie_buddy.frontend.LogOverlay;
+
 import java.io.PrintStream;
 import java.util.Arrays;
 

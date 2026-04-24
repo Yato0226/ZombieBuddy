@@ -1,6 +1,11 @@
-package me.zed_0xff.zombie_buddy;
+package me.zed_0xff.zombie_buddy.frontend;
 
 import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
+
+import me.zed_0xff.zombie_buddy.JarBatchApprovalProtocol;
+import me.zed_0xff.zombie_buddy.KnownAuthors;
+import me.zed_0xff.zombie_buddy.Loader;
+import me.zed_0xff.zombie_buddy.ZBSVerifier;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -44,7 +49,7 @@ import java.util.Map;
 
 /**
  * Standalone entry point for a non-headless JVM: shows one Swing window listing
- * all Java mods that need approval. Invoked by {@link Loader} via ProcessBuilder.
+ * all Java mods that need approval. Invoked by {@link me.zed_0xff.zombie_buddy.Loader} via ProcessBuilder.
  *
  * <p>Args: {@code <requestFile> <responseFile>}
  */

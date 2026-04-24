@@ -1,4 +1,9 @@
-package me.zed_0xff.zombie_buddy;
+package me.zed_0xff.zombie_buddy.frontend;
+
+import me.zed_0xff.zombie_buddy.JarBatchApprovalProtocol;
+import me.zed_0xff.zombie_buddy.JarDecisionTable;
+import me.zed_0xff.zombie_buddy.Loader;
+import me.zed_0xff.zombie_buddy.Logger;
 
 import zombie.GameWindow;
 
@@ -9,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Runs a subprocess executing {@link BatchJarApprovalMain} (javax.swing). If the subprocess fails,
- * no decisions are applied here; {@link Loader} will treat still-unapproved mods according to policy.
+ * no decisions are applied here; {@link me.zed_0xff.zombie_buddy.Loader} will treat still-unapproved mods according to policy.
  */
 public final class SwingModApprovalFrontend implements ModApprovalFrontend {
 

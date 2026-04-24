@@ -1,6 +1,9 @@
-package me.zed_0xff.zombie_buddy;
+package me.zed_0xff.zombie_buddy.frontend;
 
 import java.util.List;
+
+import me.zed_0xff.zombie_buddy.JarBatchApprovalProtocol;
+import me.zed_0xff.zombie_buddy.JarDecisionTable;
 
 /**
  * UI for Java mod approvals. Implementations present {@code pending} in one batch UI if available,

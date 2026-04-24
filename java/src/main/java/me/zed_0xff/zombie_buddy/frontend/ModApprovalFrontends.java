@@ -1,6 +1,9 @@
-package me.zed_0xff.zombie_buddy;
+package me.zed_0xff.zombie_buddy.frontend;
 
 import java.util.Locale;
+
+import me.zed_0xff.zombie_buddy.Accessor;
+import me.zed_0xff.zombie_buddy.Logger;
 
 /**
  * Resolves {@link ModApprovalFrontend} from the {@code approval_frontend} agent argument.
