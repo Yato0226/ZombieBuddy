@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.jar.JarFile;
-import me.zed_0xff.zombie_buddy.patches.experimental.Main;
 import zombie.core.Core;
 
 public class Agent {
