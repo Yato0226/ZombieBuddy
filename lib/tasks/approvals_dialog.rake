@@ -50,7 +50,7 @@ namespace :zb do
     authors = JSON.load_file("authors.json")
     abort "authors.yml: expected a mapping with at least one entry" unless authors.is_a?(Array) && authors.any?
 
-    # Keys are SteamID64 (YAML may parse them as Integer — normalize to string).
+    # Keys are SteamID64
     first_id = authors.first["id"]
     jar = "java/build/libs/ZombieBuddy.jar"
     abort "missing #{jar} (build it first)" unless File.file?(jar)

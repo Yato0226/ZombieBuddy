@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit;
  * Runs a subprocess executing {@link BatchJarApprovalMain} (javax.swing). If the subprocess fails,
  * no decisions are applied here; {@link Loader} will treat still-unapproved mods according to policy.
  */
-public final class SwingJavaModApprovalFrontend implements JavaModApprovalFrontend {
+public final class SwingModApprovalFrontend implements ModApprovalFrontend {
 
     private static final String LOADING_WAIT_JAVA_MOD_APPROVAL = "Waiting for Java mods approval…";
     private static final String LOADING_MODS = "Loading Mods";

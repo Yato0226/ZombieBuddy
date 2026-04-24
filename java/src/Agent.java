@@ -49,7 +49,7 @@ public class Agent {
         Logger.info("allow_unsigned_mods=" + Loader.g_allowUnsignedMods);
 
         // Java mod UI: auto (default), swing (Swing batch + TinyFD per-mod), tinyfd, console (stdin/headless).
-        Loader.configureApprovalFrontend(arguments.getOrDefault("approval_frontend", JavaModApprovalFrontends.ARG_AUTO));
+        Loader.configureApprovalFrontend(arguments.getOrDefault("approval_frontend", ModApprovalFrontends.ARG_AUTO));
 
         if (arguments.containsKey("batch_approval_timeout")) {
             try {

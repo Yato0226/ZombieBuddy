@@ -56,7 +56,7 @@ public final class ZBGson {
         }
     };
 
-    /** Pretty-printed output ({@link JarBatchApprovalProtocol}, {@link JavaModApprovalsStore}). */
+    /** Pretty-printed output ({@link JarBatchApprovalProtocol}, {@link ModApprovalsStore}). */
     public static final Gson PRETTY = new GsonBuilder()
         .setPrettyPrinting()
         .disableHtmlEscaping()

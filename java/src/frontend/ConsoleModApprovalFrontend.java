@@ -11,7 +11,7 @@ import java.util.Locale;
  * Text-mode approvals on {@link System#in} / {@link System#out}.
  * Intended for headless dedicated servers where Swing/TinyFD are unavailable or undesirable.
  */
-public final class ConsoleJavaModApprovalFrontend implements JavaModApprovalFrontend {
+public final class ConsoleModApprovalFrontend implements ModApprovalFrontend {
 
     private final BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
 

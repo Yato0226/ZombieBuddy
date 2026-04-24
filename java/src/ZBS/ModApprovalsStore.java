@@ -37,13 +37,13 @@ import com.google.gson.annotations.SerializedName;
  *   ]
  * }
  */
-public final class JavaModApprovalsStore {
+public final class ModApprovalsStore {
 
-    public static final String JSON_FILE_NAME = "java_mod_approvals.json";
+    public static final String JSON_FILE_NAME = "mod_approvals.json";
     public static final String LEGACY_TXT_FILE_NAME = "java_mod_approvals.txt";
     private static final int FORMAT_VERSION = 1;
 
-    private JavaModApprovalsStore() {}
+    private ModApprovalsStore() {}
 
     /** Root JSON structure. */
     public static final class FileData {

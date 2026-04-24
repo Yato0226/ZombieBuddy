@@ -11,7 +11,7 @@ import java.util.List;
  * LWJGL {@code TinyFileDialogs} (works when the game JVM is {@code java.awt.headless=true}).
  * No multi-mod window: {@link #approvePendingMods} prompts one entry at a time.
  */
-public final class TinyfdJavaModApprovalFrontend implements JavaModApprovalFrontend {
+public final class TinyfdModApprovalFrontend implements ModApprovalFrontend {
 
     private static final String DIALOG_TITLE = "ZombieBuddy Java mod approval";
 
@@ -36,7 +36,7 @@ public final class TinyfdJavaModApprovalFrontend implements JavaModApprovalFront
         String modKey = e.modKey;
         String sha256 = e.sha256;
 
-        Loader.doLoadingWaitJavaModApproval();
+        Loader.doLoadingWaitModApproval();
         try {
             if ("no".equals(e.zbsValid)) {
                 String note = e.zbsNotice != null && !e.zbsNotice.isEmpty()
@@ -84,7 +84,7 @@ public final class TinyfdJavaModApprovalFrontend implements JavaModApprovalFront
 
             String verb = allow ? "APPROVAL" : "DENIAL";
             String yesHint = allow
-                ? "Yes — save to ~/.zombie_buddy/" + JavaModApprovalsStore.JSON_FILE_NAME + " and do not ask again."
+                ? "Yes — save to ~/.zombie_buddy/" + ModApprovalsStore.JSON_FILE_NAME + " and do not ask again."
                 : "Yes — save as denied; this JAR will be blocked without asking.";
             String noHint = allow
                 ? "No  — allow only for this game session."

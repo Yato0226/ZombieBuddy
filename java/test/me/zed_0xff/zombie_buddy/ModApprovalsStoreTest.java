@@ -14,19 +14,19 @@ import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-class JavaModApprovalsStoreTest {
+class ModApprovalsStoreTest {
 
     @Test
     void parseFixture_loadsAllFields() throws IOException {
         String json = loadFixture("java_mod_approvals_sample.json");
-        JavaModApprovalsStore.FileData data = ZBGson.PRETTY.fromJson(json, JavaModApprovalsStore.FileData.class);
+        ModApprovalsStore.FileData data = ZBGson.PRETTY.fromJson(json, ModApprovalsStore.FileData.class);
 
         assertEquals(1, data.formatVersion);
         assertEquals(3, data.mods.size());
         assertEquals(2, data.authors.size());
 
         // Check first mod
-        JavaModApprovalsStore.ModEntry mod1 = data.mods.get(0);
+        ModApprovalsStore.ModEntry mod1 = data.mods.get(0);
         assertEquals("TestMod1", mod1.id);
         assertEquals(3709229404L, mod1.workshopId.value());
         assertEquals("c180d888eac78369a58dd266e98095ca7e86e16533294ee43ec750e729827064", mod1.jarHash);
@@ -35,19 +35,19 @@ class JavaModApprovalsStoreTest {
         assertEquals(76561198043849998L, mod1.authorId.value());
 
         // Check second mod
-        JavaModApprovalsStore.ModEntry mod2 = data.mods.get(1);
+        ModApprovalsStore.ModEntry mod2 = data.mods.get(1);
         assertEquals("TestMod2", mod2.id);
         assertFalse(mod2.decision);
 
         // Check third mod (no workshop_id, no author_id)
-        JavaModApprovalsStore.ModEntry mod3 = data.mods.get(2);
+        ModApprovalsStore.ModEntry mod3 = data.mods.get(2);
         assertEquals("LocalMod", mod3.id);
         assertNull(mod3.workshopId);
         assertNull(mod3.authorId);
         assertTrue(mod3.decision);
 
         // Check authors
-        JavaModApprovalsStore.AuthorEntry ae1 = findAuthorById(data, 76561198043849998L);
+        ModApprovalsStore.AuthorEntry ae1 = findAuthorById(data, 76561198043849998L);
         assertNotNull(ae1);
         assertEquals(76561198043849998L, ae1.id.value());
         assertTrue(ae1.trust);
@@ -55,16 +55,16 @@ class JavaModApprovalsStoreTest {
         assertEquals(1, ae1.keys.size());
         assertTrue(ae1.keys.contains("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"));
 
-        JavaModApprovalsStore.AuthorEntry ae2 = findAuthorById(data, 76561198012345678L);
+        ModApprovalsStore.AuthorEntry ae2 = findAuthorById(data, 76561198012345678L);
         assertNotNull(ae2);
         assertFalse(ae2.trust);
     }
 
     @Test
     void roundTrip_preservesData() {
-        JavaModApprovalsStore.FileData original = new JavaModApprovalsStore.FileData();
+        ModApprovalsStore.FileData original = new ModApprovalsStore.FileData();
         
-        JavaModApprovalsStore.ModEntry mod = new JavaModApprovalsStore.ModEntry(
+        ModApprovalsStore.ModEntry mod = new ModApprovalsStore.ModEntry(
             "RoundTripMod",
             new WorkshopItemID(9876543210L),
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -76,17 +76,17 @@ class JavaModApprovalsStoreTest {
 
         Set<String> keys = new LinkedHashSet<>();
         keys.add("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210");
-        original.authors.add(new JavaModApprovalsStore.AuthorEntry(
+        original.authors.add(new ModApprovalsStore.AuthorEntry(
             new SteamID64(76561198099999999L), true, keys, "RoundTripAuthor"));
 
         String json = ZBGson.PRETTY.toJson(original);
-        JavaModApprovalsStore.FileData parsed = ZBGson.PRETTY.fromJson(json, JavaModApprovalsStore.FileData.class);
+        ModApprovalsStore.FileData parsed = ZBGson.PRETTY.fromJson(json, ModApprovalsStore.FileData.class);
 
         assertEquals(original.formatVersion, parsed.formatVersion);
         assertEquals(original.mods.size(), parsed.mods.size());
         assertEquals(original.authors.size(), parsed.authors.size());
 
-        JavaModApprovalsStore.ModEntry parsedMod = parsed.mods.get(0);
+        ModApprovalsStore.ModEntry parsedMod = parsed.mods.get(0);
         assertEquals(mod.id, parsedMod.id);
         assertEquals(mod.workshopId.value(), parsedMod.workshopId.value());
         assertEquals(mod.jarHash, parsedMod.jarHash);
@@ -94,7 +94,7 @@ class JavaModApprovalsStoreTest {
         assertEquals(mod.time, parsedMod.time);
         assertEquals(mod.authorId.value(), parsedMod.authorId.value());
 
-        JavaModApprovalsStore.AuthorEntry parsedAuthor = findAuthorById(parsed, 76561198099999999L);
+        ModApprovalsStore.AuthorEntry parsedAuthor = findAuthorById(parsed, 76561198099999999L);
         assertNotNull(parsedAuthor);
         assertEquals("RoundTripAuthor", parsedAuthor.name);
         assertTrue(parsedAuthor.trust);
@@ -102,8 +102,8 @@ class JavaModApprovalsStoreTest {
 
     @Test
     void serialize_writesNumbersNotStrings() {
-        JavaModApprovalsStore.FileData data = new JavaModApprovalsStore.FileData();
-        data.mods.add(new JavaModApprovalsStore.ModEntry(
+        ModApprovalsStore.FileData data = new ModApprovalsStore.FileData();
+        data.mods.add(new ModApprovalsStore.ModEntry(
             "NumericTest",
             new WorkshopItemID(1234567890L),
             "hash",
@@ -111,7 +111,7 @@ class JavaModApprovalsStoreTest {
             null,
             new SteamID64(76561198000000000L)
         ));
-        data.authors.add(new JavaModApprovalsStore.AuthorEntry(
+        data.authors.add(new ModApprovalsStore.AuthorEntry(
             new SteamID64(76561198000000000L), true, null, "TestAuthor"));
 
         String json = ZBGson.PRETTY.toJson(data);
@@ -133,8 +133,8 @@ class JavaModApprovalsStoreTest {
 
     @Test
     void nullFields_handledGracefully() {
-        JavaModApprovalsStore.FileData data = new JavaModApprovalsStore.FileData();
-        data.mods.add(new JavaModApprovalsStore.ModEntry(
+        ModApprovalsStore.FileData data = new ModApprovalsStore.FileData();
+        data.mods.add(new ModApprovalsStore.ModEntry(
             "NullFieldsMod",
             null,  // no workshop_id
             "somehash",
@@ -144,18 +144,18 @@ class JavaModApprovalsStoreTest {
         ));
 
         String json = ZBGson.PRETTY.toJson(data);
-        JavaModApprovalsStore.FileData parsed = ZBGson.PRETTY.fromJson(json, JavaModApprovalsStore.FileData.class);
+        ModApprovalsStore.FileData parsed = ZBGson.PRETTY.fromJson(json, ModApprovalsStore.FileData.class);
 
         assertEquals(1, parsed.mods.size());
-        JavaModApprovalsStore.ModEntry mod = parsed.mods.get(0);
+        ModApprovalsStore.ModEntry mod = parsed.mods.get(0);
         assertEquals("NullFieldsMod", mod.id);
         assertNull(mod.workshopId);
         assertNull(mod.authorId);
         assertNull(mod.time);
     }
 
-    private static JavaModApprovalsStore.AuthorEntry findAuthorById(JavaModApprovalsStore.FileData data, long id) {
-        for (JavaModApprovalsStore.AuthorEntry ae : data.authors) {
+    private static ModApprovalsStore.AuthorEntry findAuthorById(ModApprovalsStore.FileData data, long id) {
+        for (ModApprovalsStore.AuthorEntry ae : data.authors) {
             if (ae.id != null && ae.id.value() == id) {
                 return ae;
             }
@@ -164,7 +164,7 @@ class JavaModApprovalsStoreTest {
     }
 
     private static String loadFixture(String name) throws IOException {
-        try (InputStream is = JavaModApprovalsStoreTest.class.getResourceAsStream("/fixtures/" + name)) {
+        try (InputStream is = ModApprovalsStoreTest.class.getResourceAsStream("/fixtures/" + name)) {
             if (is == null) {
                 // Try alternate path for gradle test runner
                 Path p = Path.of("test/fixtures", name);

@@ -20,7 +20,7 @@ import zombie.GameWindow;
 import zombie.core.znet.SteamUtils;
 import zombie.gameStates.ChooseGameInfo;
 
-import me.zed_0xff.zombie_buddy.JavaModApprovalsStore.AuthorEntry;
+import me.zed_0xff.zombie_buddy.ModApprovalsStore.AuthorEntry;
 
 public class Loader {
     public static Instrumentation g_instrumentation;
@@ -86,29 +86,29 @@ public class Loader {
     static final String DECISION_NO  = "no";
 
     // Persisted entries loaded from disk - the source of truth for saving
-    private static List<JavaModApprovalsStore.ModEntry> g_storedEntries = new ArrayList<>();
+    private static List<ModApprovalsStore.ModEntry> g_storedEntries = new ArrayList<>();
     // Session-only decisions (not persisted)
     private static final JarDecisionTable g_sessionJarDecisions = new JarDecisionTable();
     // Author trust entries
     private static final Map<SteamID64, AuthorEntry> g_authors = new HashMap<>();
 
     private static final Object g_approvalFrontendLock = new Object();
-    private static volatile JavaModApprovalFrontend g_approvalFrontend;
+    private static volatile ModApprovalFrontend g_approvalFrontend;
     /** Set in {@link #configureApprovalFrontend}; resolved lazily — do not touch LWJGL during agent {@code premain}. */
-    private static String g_approvalFrontendConfig = JavaModApprovalFrontends.ARG_AUTO;
+    private static String g_approvalFrontendConfig = ModApprovalFrontends.ARG_AUTO;
 
     /** Called from {@link Agent#premain} with {@code approval_frontend=...} (default {@code auto}). */
     public static void configureApprovalFrontend(String value) {
         String v = value == null ? "" : value.trim();
         synchronized (g_approvalFrontendLock) {
-            g_approvalFrontendConfig = v.isEmpty() ? JavaModApprovalFrontends.ARG_AUTO : v;
+            g_approvalFrontendConfig = v.isEmpty() ? ModApprovalFrontends.ARG_AUTO : v;
             g_approvalFrontend = null;
         }
         Logger.info("Java mod approval frontend: " + g_approvalFrontendConfig);
     }
 
-    private static JavaModApprovalFrontend approvalFrontend() {
-        JavaModApprovalFrontend f = g_approvalFrontend;
+    private static ModApprovalFrontend approvalFrontend() {
+        ModApprovalFrontend f = g_approvalFrontend;
         if (f != null) {
             return f;
         }
@@ -117,12 +117,12 @@ public class Loader {
             if (f != null) {
                 return f;
             }
-            g_approvalFrontend = JavaModApprovalFrontends.resolve(g_approvalFrontendConfig);
+            g_approvalFrontend = ModApprovalFrontends.resolve(g_approvalFrontendConfig);
             return g_approvalFrontend;
         }
     }
 
-    static void doLoadingWaitJavaModApproval() {
+    static void doLoadingWaitModApproval() {
         GameWindow.DoLoadingText(LOADING_WAIT_JAVA_MOD_APPROVAL);
     }
 
@@ -141,11 +141,11 @@ public class Loader {
      * For batch UI: if this mod id has allow/deny for <b>other</b> JAR hashes, suggest the same
      * (any other {@code no} wins over {@code yes}; empty = default No in the dialog).
      */
-    private static String priorHintForBatchRow(List<JavaModApprovalsStore.ModEntry> storedEntries, String modId, String hash) {
+    private static String priorHintForBatchRow(List<ModApprovalsStore.ModEntry> storedEntries, String modId, String hash) {
         if (modId == null || modId.isEmpty()) return "";
         boolean anyOtherNo = false;
         boolean anyOtherYes = false;
-        for (JavaModApprovalsStore.ModEntry e : storedEntries) {
+        for (ModApprovalsStore.ModEntry e : storedEntries) {
             String wsIdStr = e.workshopId != null ? Long.toString(e.workshopId.value()) : null;
             if (!modId.equals(e.id) && !modId.equals(wsIdStr)) continue;
             if (hash.equals(e.jarHash)) continue;
@@ -195,9 +195,9 @@ public class Loader {
     /** Restores the same label the game uses while loading mods (see {@link GameWindow#DoLoadingText}). */
     private static final String LOADING_MODS = "Loading Mods";
 
-    private static JarDecisionTable buildJarDecisionTable(List<JavaModApprovalsStore.ModEntry> mods) {
+    private static JarDecisionTable buildJarDecisionTable(List<ModApprovalsStore.ModEntry> mods) {
         JarDecisionTable table = new JarDecisionTable();
-        for (JavaModApprovalsStore.ModEntry entry : mods) {
+        for (ModApprovalsStore.ModEntry entry : mods) {
             if (entry.jarHash != null) {
                 table.put(entry.jarHash, entry.decision ? DECISION_YES : DECISION_NO);
             }
@@ -213,7 +213,7 @@ public class Loader {
             WorkshopItemID workshopId, SteamID64 authorId) {
         if (jarHash == null) return;
         // Update existing entry if found
-        for (JavaModApprovalsStore.ModEntry e : g_storedEntries) {
+        for (ModApprovalsStore.ModEntry e : g_storedEntries) {
             if (jarHash.equals(e.jarHash)) {
                 e.decision = allow;
                 if (modId != null && !modId.isEmpty()) e.id = modId;
@@ -223,7 +223,7 @@ public class Loader {
             }
         }
         // Add new entry
-        g_storedEntries.add(new JavaModApprovalsStore.ModEntry(
+        g_storedEntries.add(new ModApprovalsStore.ModEntry(
             modId != null ? modId : "",
             workshopId,
             jarHash,
@@ -381,7 +381,7 @@ public class Loader {
         String myPackageName = Loader.class.getPackage().getName();
         ArrayList<Boolean> shouldSkipList = new ArrayList<>();
         ArrayList<String> skipReasons = new ArrayList<>();
-        JavaModApprovalsStore.FileData fileData = JavaModApprovalsStore.load();
+        ModApprovalsStore.FileData fileData = ModApprovalsStore.load();
         // Store entries for persistence and build lookup table
         g_storedEntries = new ArrayList<>(fileData.mods);
         int storedEntriesCountBefore = g_storedEntries.size();
@@ -586,10 +586,10 @@ public class Loader {
         if (!approvalsBefore.equals(approvals)
             || !authorsBefore.equals(g_authors)
             || g_storedEntries.size() != storedEntriesCountBefore) {
-            JavaModApprovalsStore.FileData dataToSave = new JavaModApprovalsStore.FileData();
+            ModApprovalsStore.FileData dataToSave = new ModApprovalsStore.FileData();
             dataToSave.mods = new ArrayList<>(g_storedEntries);
             dataToSave.authors = new ArrayList<>(g_authors.values());
-            JavaModApprovalsStore.save(dataToSave);
+            ModApprovalsStore.save(dataToSave);
         }
         
         if (!shouldSkipList.isEmpty()) {
