@@ -146,6 +146,7 @@ public final class PatchEngine {
         for (Class<?> patch : patches) {
             Patch ann = patch.getAnnotation(Patch.class);
             if (ann == null) continue;
+            if (ann.className().startsWith("me.zed_0xff.")) continue; // refuse to patch our own classes
 
             if (ann.className().equals("zombie.Lua.LuaManager$Exposer") && ann.methodName().equals("exposeAll") && !ann.IKnowWhatIAmDoing()) {
                 Logger.error("XXX");
