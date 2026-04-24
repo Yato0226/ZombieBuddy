@@ -18,7 +18,7 @@ class ModApprovalsStoreTest {
 
     @Test
     void parseFixture_loadsAllFields() throws IOException {
-        String json = loadFixture("java_mod_approvals_sample.json");
+        String json = loadFixture("mod_approvals_sample.json");
         ModApprovalsStore.FileData data = ZBGson.PRETTY.fromJson(json, ModApprovalsStore.FileData.class);
 
         assertEquals(1, data.formatVersion);

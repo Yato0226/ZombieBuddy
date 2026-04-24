@@ -34,7 +34,7 @@ Nothing is loaded until you click **Yes**. A second dialog asks whether the deci
 - **Windows:** `%USERPROFILE%\.zombie_buddy\mod_approvals.json`
 - **macOS / Linux:** `~/.zombie_buddy/mod_approvals.json`
 
-The file is JSON (with room for future top-level fields). Persisted allow/deny pairs live under `jarDecisions` as a nested object: each **mod id** maps to an object of **SHA-256 hex → JSON boolean** (`true` = allow, `false` = deny). A leftover `java_mod_approvals.txt` from older builds is deleted at startup without being imported. To revoke a decision, edit or remove the matching mod/hash under `jarDecisions` and restart the game.
+The file is JSON (with room for future top-level fields). Persisted allow/deny pairs live under `mods` as a nested object: each **mod id** maps to an object of **SHA-256 hex → JSON boolean** (`true` = allow, `false` = deny). To revoke a decision, edit or remove the matching mod/hash under `mods` and restart the game.
 
 ### Policy modes
 

@@ -96,7 +96,7 @@ Examples (block form, these go into Steam launch options):
     Safe to add or remove on existing saves.
 
     [*][b]I clicked the wrong button in the approval dialog. How do I reset it?[/b]
-    Open mod_approvals.json (path above), under jarDecisions find your mod id, then remove or edit the SHA-256 key you want to reset (or change true/false), save, and restart. An old java_mod_approvals.txt is removed at startup and not imported.
+    Open mod_approvals.json (path above), under 'mods' find your mod id, then remove or edit the SHA-256 key you want to reset (or change true/false), save, and restart.
 
     [*][b]Can I see which Java mods were loaded or blocked?[/b]
     Yes - install [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3709229404]Zed's Better ModList[/url] and the status is shown next to each JAR path in the mod list.
