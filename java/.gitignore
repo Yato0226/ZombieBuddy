@@ -1,5 +1,7 @@
-# Ignore Gradle project-specific cache directory
+.classpath
 .gradle
+.project
+.settings
 
 build/classes
 build/libs
