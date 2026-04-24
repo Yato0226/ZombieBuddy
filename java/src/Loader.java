@@ -1,5 +1,8 @@
 package me.zed_0xff.zombie_buddy;
 
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.WorkshopItemID;
+
 import java.io.File;
 import java.lang.ClassLoader;
 import java.lang.instrument.Instrumentation;
@@ -207,7 +210,7 @@ public class Loader {
      * Updates existing entry with matching jarHash, or adds a new one.
      */
     private static void storeDecision(String jarHash, boolean allow, String modId, 
-            JavaModInfo.WorkshopItemID workshopId, SteamID64 authorId) {
+            WorkshopItemID workshopId, SteamID64 authorId) {
         if (jarHash == null) return;
         // Update existing entry if found
         for (JavaModApprovalsStore.ModEntry e : g_storedEntries) {
@@ -408,21 +411,21 @@ public class Loader {
             structuralOnlySkip.add(stSkip);
         }
         boolean steamModeEnabled = SteamUtils.isSteamModeEnabled();
-        Set<JavaModInfo.WorkshopItemID> workshopIdsToCheck = new HashSet<>();
+        Set<WorkshopItemID> workshopIdsToCheck = new HashSet<>();
         if (steamModeEnabled) {
             for (JavaModInfo jModInfo : jModInfos) {
-                JavaModInfo.WorkshopItemID workshopItemId = jModInfo.getWorkshopItemID();
+                WorkshopItemID workshopItemId = jModInfo.getWorkshopItemID();
                 if (workshopItemId != null) {
                     workshopIdsToCheck.add(workshopItemId);
                 }
             }
         }
-        Map<JavaModInfo.WorkshopItemID, SteamWorkshop.ItemDetails> workshopDetailsById = steamModeEnabled
+        Map<WorkshopItemID, SteamWorkshop.ItemDetails> workshopDetailsById = steamModeEnabled
             ? SteamWorkshop.fetchItemDetails(workshopIdsToCheck)
             : new HashMap<>();
 
         // Pre-compute per-mod context to avoid duplicate work in prompt and load loops
-        record ModCtx(String modId, File jarFile, String hash, JavaModInfo.WorkshopItemID workshopItemId,
+        record ModCtx(String modId, File jarFile, String hash, WorkshopItemID workshopItemId,
                       SteamWorkshop.ItemDetails workshopDetails, SteamWorkshop.BanInfo banInfo, boolean steamBanned) {}
         List<ModCtx> modContexts = new ArrayList<>();
         for (int i = 0; i < jModInfos.size(); i++) {
@@ -430,7 +433,7 @@ public class Loader {
             String modId = i < jModIds.size() ? jModIds.get(i) : jModInfo.javaPkgName();
             File jarFile = jModInfo.getJarFileAsFile();
             String hash = LoaderUtils.sha256Hex(jarFile);
-            JavaModInfo.WorkshopItemID workshopItemId = jModInfo.getWorkshopItemID();
+            WorkshopItemID workshopItemId = jModInfo.getWorkshopItemID();
             SteamWorkshop.ItemDetails workshopDetails = steamModeEnabled && workshopItemId != null
                 ? workshopDetailsById.get(workshopItemId) : null;
             SteamWorkshop.BanInfo banInfo = workshopItemId == null
@@ -458,7 +461,7 @@ public class Loader {
                     modDisplay = ctx.modId != null ? ctx.modId : "";
                 }
                 File zbsFile = ctx.jarFile != null ? new File(ctx.jarFile.getAbsolutePath() + ".zbs") : null;
-                JavaModInfo.WorkshopItemID workshopItemId = steamModeEnabled ? ctx.workshopItemId : null;
+                WorkshopItemID workshopItemId = steamModeEnabled ? ctx.workshopItemId : null;
                 String steamBanStatus = ctx.banInfo != null ? ctx.banInfo.status : SteamWorkshop.BAN_STATUS_NO;
                 String steamBanReason = ctx.banInfo != null ? ctx.banInfo.reason : "";
                 LoaderUtils.ZBSCheckResult zbsResult = steamModeEnabled

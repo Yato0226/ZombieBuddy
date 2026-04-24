@@ -22,6 +22,15 @@ import com.google.gson.JsonPrimitive;
  * Steam Workshop API client for fetching mod details and ban status.
  */
 public final class SteamWorkshop {
+    /** Strongly-typed Steam account id. */
+    public static record SteamID64(long value) {
+        public SteamID64(String s) { this(Long.parseLong(s)); }
+        @Override public String toString() { return Long.toString(value); }
+    }
+
+    /** Strongly-typed Steam Workshop item id ({@code publishedfileid}). */
+    public static record WorkshopItemID(long value) {}
+
     static final String BAN_STATUS_YES = "yes";
     static final String BAN_STATUS_NO = "no";
     static final String BAN_STATUS_UNKNOWN = "unknown";
@@ -61,19 +70,19 @@ public final class SteamWorkshop {
      * Fetch Workshop item details (ban status, creator) for the given IDs.
      * @return map of workshop ID to details; unknown items get BAN_STATUS_UNKNOWN
      */
-    public static Map<JavaModInfo.WorkshopItemID, ItemDetails> fetchItemDetails(
-        Set<JavaModInfo.WorkshopItemID> workshopIds
+    public static Map<WorkshopItemID, ItemDetails> fetchItemDetails(
+        Set<WorkshopItemID> workshopIds
     ) {
-        Map<JavaModInfo.WorkshopItemID, ItemDetails> out = new HashMap<>();
+        Map<WorkshopItemID, ItemDetails> out = new HashMap<>();
         if (workshopIds == null || workshopIds.isEmpty()) {
             return out;
         }
         Logger.info("checking mods ban status");
         try {
-            List<JavaModInfo.WorkshopItemID> ids = new ArrayList<>(workshopIds);
+            List<WorkshopItemID> ids = new ArrayList<>(workshopIds);
             for (int from = 0; from < ids.size(); from += BATCH_SIZE) {
                 int to = Math.min(ids.size(), from + BATCH_SIZE);
-                List<JavaModInfo.WorkshopItemID> chunk = ids.subList(from, to);
+                List<WorkshopItemID> chunk = ids.subList(from, to);
                 fetchChunk(chunk, out);
             }
         } catch (InterruptedException ie) {
@@ -86,8 +95,8 @@ public final class SteamWorkshop {
     }
 
     private static void fetchChunk(
-        List<JavaModInfo.WorkshopItemID> chunk,
-        Map<JavaModInfo.WorkshopItemID, ItemDetails> out
+        List<WorkshopItemID> chunk,
+        Map<WorkshopItemID, ItemDetails> out
     ) throws Exception {
         StringBuilder body = new StringBuilder();
         body.append("itemcount=").append(chunk.size());
@@ -116,11 +125,11 @@ public final class SteamWorkshop {
             setUnknownDetails(out, new HashSet<>(chunk), "Steam API response missing publishedfiledetails");
             return;
         }
-        Set<JavaModInfo.WorkshopItemID> seen = new HashSet<>();
+        Set<WorkshopItemID> seen = new HashSet<>();
         for (JsonElement it : details.getAsJsonArray()) {
             if (it == null || !it.isJsonObject()) continue;
             JsonObject itObj = it.getAsJsonObject();
-            JavaModInfo.WorkshopItemID id = parsePublishedFileId(itObj.get("publishedfileid"));
+            WorkshopItemID id = parsePublishedFileId(itObj.get("publishedfileid"));
             if (id == null) continue;
             seen.add(id);
             int banned = 0;
@@ -139,7 +148,7 @@ public final class SteamWorkshop {
                 creator
             ));
         }
-        for (JavaModInfo.WorkshopItemID id : chunk) {
+        for (WorkshopItemID id : chunk) {
             if (!seen.contains(id) && !out.containsKey(id)) {
                 out.put(id, new ItemDetails(
                     new BanInfo(BAN_STATUS_UNKNOWN, "Steam API response missing mod id"),
@@ -150,30 +159,30 @@ public final class SteamWorkshop {
     }
 
     private static void setUnknownDetails(
-        Map<JavaModInfo.WorkshopItemID, ItemDetails> out,
-        Set<JavaModInfo.WorkshopItemID> workshopIds,
+        Map<WorkshopItemID, ItemDetails> out,
+        Set<WorkshopItemID> workshopIds,
         String reason
     ) {
-        for (JavaModInfo.WorkshopItemID id : workshopIds) {
+        for (WorkshopItemID id : workshopIds) {
             if (id == null) continue;
             out.put(id, new ItemDetails(new BanInfo(BAN_STATUS_UNKNOWN, reason), null));
         }
     }
 
-    private static JavaModInfo.WorkshopItemID parsePublishedFileId(JsonElement idJson) {
+    private static WorkshopItemID parsePublishedFileId(JsonElement idJson) {
         if (idJson == null || idJson.isJsonNull()) return null;
         if (!idJson.isJsonPrimitive()) return null;
         JsonPrimitive p = idJson.getAsJsonPrimitive();
         if (p.isString()) {
             try {
-                return new JavaModInfo.WorkshopItemID(Long.parseLong(p.getAsString().trim()));
+                return new WorkshopItemID(Long.parseLong(p.getAsString().trim()));
             } catch (Exception e) {
                 return null;
             }
         }
         if (p.isNumber()) {
             try {
-                return new JavaModInfo.WorkshopItemID(p.getAsLong());
+                return new WorkshopItemID(p.getAsLong());
             } catch (Exception e) {
                 return null;
             }
@@ -202,8 +211,8 @@ public final class SteamWorkshop {
      * @return null if no workshop item or creator unavailable
      */
     public static SteamID64 getUploaderForVerification(
-        JavaModInfo.WorkshopItemID workshopItemId,
-        Map<JavaModInfo.WorkshopItemID, ItemDetails> byId
+        WorkshopItemID workshopItemId,
+        Map<WorkshopItemID, ItemDetails> byId
     ) {
         if (workshopItemId == null) return null;
         ItemDetails d = byId.get(workshopItemId);
@@ -211,7 +220,7 @@ public final class SteamWorkshop {
     }
 
     /** Convert WorkshopItemID to string, or null. */
-    public static String idToString(JavaModInfo.WorkshopItemID wid) {
+    public static String idToString(WorkshopItemID wid) {
         return wid != null ? Long.toString(wid.value()) : null;
     }
 }

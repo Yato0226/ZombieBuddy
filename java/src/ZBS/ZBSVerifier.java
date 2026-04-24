@@ -1,5 +1,7 @@
 package me.zed_0xff.zombie_buddy;
 
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
+
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.bouncycastle.crypto.signers.Ed25519Signer;
 

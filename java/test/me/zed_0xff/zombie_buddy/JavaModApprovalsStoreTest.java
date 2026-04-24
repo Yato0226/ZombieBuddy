@@ -1,5 +1,9 @@
 package me.zed_0xff.zombie_buddy;
 
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.WorkshopItemID;
+import static org.junit.jupiter.api.Assertions.*;
+
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -9,8 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.Set;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class JavaModApprovalsStoreTest {
 
@@ -64,7 +66,7 @@ class JavaModApprovalsStoreTest {
         
         JavaModApprovalsStore.ModEntry mod = new JavaModApprovalsStore.ModEntry(
             "RoundTripMod",
-            new JavaModInfo.WorkshopItemID(9876543210L),
+            new WorkshopItemID(9876543210L),
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             true,
             "2026-04-24T15:30:00Z",
@@ -103,7 +105,7 @@ class JavaModApprovalsStoreTest {
         JavaModApprovalsStore.FileData data = new JavaModApprovalsStore.FileData();
         data.mods.add(new JavaModApprovalsStore.ModEntry(
             "NumericTest",
-            new JavaModInfo.WorkshopItemID(1234567890L),
+            new WorkshopItemID(1234567890L),
             "hash",
             true,
             null,

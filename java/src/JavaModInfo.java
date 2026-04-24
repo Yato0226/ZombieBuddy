@@ -1,5 +1,7 @@
 package me.zed_0xff.zombie_buddy;
 
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.WorkshopItemID;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.regex.Matcher;
@@ -22,9 +24,6 @@ public record JavaModInfo(
     private static final String PZ_APP_ID = "108600";
     private static final Pattern WORKSHOP_ITEM_ID_IN_PATH = Pattern.compile("/content/" + PZ_APP_ID + "/([0-9]+)/");
     private static final Pattern WORKSHOP_ITEM_ID_IN_TXT  = Pattern.compile("^id=([0-9]+)$");
-
-    /** Strongly-typed Steam Workshop item id ({@code publishedfileid}). */
-    public record WorkshopItemID(long value) {}
 
     public JavaModInfo(File modDir, File modInfoFile) {
         this(modDir, modInfoFile, null, null, null, null, null);

@@ -1,5 +1,8 @@
 package me.zed_0xff.zombie_buddy;
 
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.WorkshopItemID;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -39,10 +42,10 @@ public final class LoaderUtils {
     public static ZBSCheckResult checkZBS(
             File jarFile,
             String jarHash,
-            JavaModInfo.WorkshopItemID workshopItemId,
+            WorkshopItemID workshopItemId,
             boolean steamModeEnabled,
             boolean allowUnsignedMods,
-            Map<JavaModInfo.WorkshopItemID, SteamWorkshop.ItemDetails> workshopDetailsById
+            Map<WorkshopItemID, SteamWorkshop.ItemDetails> workshopDetailsById
     ) {
         File zbsFile = new File(jarFile.getAbsolutePath() + ".zbs");
         

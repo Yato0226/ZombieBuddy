@@ -1,5 +1,8 @@
 package me.zed_0xff.zombie_buddy;
 
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.WorkshopItemID;
+
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -34,7 +37,7 @@ public final class JarBatchApprovalProtocol {
         public final String modId;
         /** Nullable workshop item id for this row. */
         @SerializedName("workshopItemId")
-        public final JavaModInfo.WorkshopItemID workshopItemId;
+        public final WorkshopItemID workshopItemId;
         @SerializedName("jarAbsolutePath")
         public final String jarAbsolutePath;
         @SerializedName("sha256")
@@ -66,7 +69,7 @@ public final class JarBatchApprovalProtocol {
         public Entry(
             String modKey,
             String modId,
-            JavaModInfo.WorkshopItemID workshopItemId,
+            WorkshopItemID workshopItemId,
             String jarAbsolutePath,
             String sha256,
             String modifiedHuman,
@@ -99,7 +102,7 @@ public final class JarBatchApprovalProtocol {
         @SerializedName("modId")
         public final String modId;
         @SerializedName("workshopItemId")
-        public final JavaModInfo.WorkshopItemID workshopItemId;
+        public final WorkshopItemID workshopItemId;
         @SerializedName("sha256")
         public final String sha256;
         @SerializedName("token")
@@ -109,7 +112,7 @@ public final class JarBatchApprovalProtocol {
 
         public OutLine(
             String modId,
-            JavaModInfo.WorkshopItemID workshopItemId,
+            WorkshopItemID workshopItemId,
             String sha256,
             String token,
             SteamID64 trustedAuthorSteamId

@@ -1,5 +1,8 @@
 package me.zed_0xff.zombie_buddy;
 
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.WorkshopItemID;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.TypeAdapter;
@@ -13,9 +16,9 @@ public final class ZBGson {
 
     private ZBGson() {}
 
-    private static final TypeAdapter<JavaModInfo.WorkshopItemID> WORKSHOP_ID_ADAPTER = new TypeAdapter<>() {
+    private static final TypeAdapter<WorkshopItemID> WORKSHOP_ID_ADAPTER = new TypeAdapter<>() {
         @Override
-        public void write(JsonWriter out, JavaModInfo.WorkshopItemID value) throws IOException {
+        public void write(JsonWriter out, WorkshopItemID value) throws IOException {
             if (value == null) {
                 out.nullValue();
             } else {
@@ -24,12 +27,12 @@ public final class ZBGson {
         }
 
         @Override
-        public JavaModInfo.WorkshopItemID read(JsonReader in) throws IOException {
+        public WorkshopItemID read(JsonReader in) throws IOException {
             if (in.peek() == JsonToken.NULL) {
                 in.nextNull();
                 return null;
             }
-            return new JavaModInfo.WorkshopItemID(in.nextLong());
+            return new WorkshopItemID(in.nextLong());
         }
     };
 
@@ -57,7 +60,7 @@ public final class ZBGson {
     public static final Gson PRETTY = new GsonBuilder()
         .setPrettyPrinting()
         .disableHtmlEscaping()
-        .registerTypeAdapter(JavaModInfo.WorkshopItemID.class, WORKSHOP_ID_ADAPTER)
+        .registerTypeAdapter(WorkshopItemID.class, WORKSHOP_ID_ADAPTER)
         .registerTypeAdapter(SteamID64.class, STEAM_ID64_ADAPTER)
         .create();
 }

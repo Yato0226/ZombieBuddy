@@ -1,5 +1,9 @@
 package me.zed_0xff.zombie_buddy;
 
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.WorkshopItemID;
+import static org.junit.jupiter.api.Assertions.*;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -10,8 +14,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class JarBatchApprovalProtocolTest {
 
@@ -83,7 +85,7 @@ class JarBatchApprovalProtocolTest {
         original.add(new JarBatchApprovalProtocol.Entry(
             "RoundTripMod",
             "RoundTripMod",
-            new JavaModInfo.WorkshopItemID(9876543210L),
+            new WorkshopItemID(9876543210L),
             "/path/to/roundtrip.jar",
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             "2026-04-24",
@@ -112,7 +114,7 @@ class JarBatchApprovalProtocolTest {
         List<JarBatchApprovalProtocol.OutLine> original = new ArrayList<>();
         original.add(new JarBatchApprovalProtocol.OutLine(
             "RoundTripMod",
-            new JavaModInfo.WorkshopItemID(9876543210L),
+            new WorkshopItemID(9876543210L),
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             "ALLOW_PERSIST",
             new SteamID64(76561198099999999L)
@@ -202,7 +204,7 @@ class JarBatchApprovalProtocolTest {
         List<JarBatchApprovalProtocol.Entry> entries = new ArrayList<>();
         entries.add(new JarBatchApprovalProtocol.Entry(
             "NumericTest", "NumericTest",
-            new JavaModInfo.WorkshopItemID(1234567890L),
+            new WorkshopItemID(1234567890L),
             "/path", "hash", "date", "", "",
             "yes", new SteamID64(76561198000000000L), "",
             "no", ""

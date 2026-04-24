@@ -1,5 +1,8 @@
 package me.zed_0xff.zombie_buddy;
 
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
+import static me.zed_0xff.zombie_buddy.SteamWorkshop.WorkshopItemID;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -60,7 +63,7 @@ public final class JavaModApprovalsStore {
         public String id = "";
         
         @SerializedName("workshop_id")
-        public JavaModInfo.WorkshopItemID workshopId;
+        public WorkshopItemID workshopId;
         
         @SerializedName("jar_hash")
         public String jarHash;
@@ -76,7 +79,7 @@ public final class JavaModApprovalsStore {
 
         public ModEntry() {}
 
-        public ModEntry(String id, JavaModInfo.WorkshopItemID workshopId, String jarHash, boolean decision, String time, SteamID64 authorId) {
+        public ModEntry(String id, WorkshopItemID workshopId, String jarHash, boolean decision, String time, SteamID64 authorId) {
             this.id = id != null ? id : "";
             this.workshopId = workshopId;
             this.jarHash = jarHash;
