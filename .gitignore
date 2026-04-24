@@ -3,4 +3,11 @@
 *.jar
 *.local
 *.log
+
+.classpath
+.gradle
+.project
+.settings
+
+build
 tmp

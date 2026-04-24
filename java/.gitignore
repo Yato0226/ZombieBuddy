@@ -1,9 +1,0 @@
-.classpath
-.gradle
-.project
-.settings
-
-build/classes
-build/libs
-build/reports
-build/test*

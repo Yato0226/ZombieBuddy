@@ -11,4 +11,5 @@ Rakefile
 
 build
 lib
+misc
 tmp
