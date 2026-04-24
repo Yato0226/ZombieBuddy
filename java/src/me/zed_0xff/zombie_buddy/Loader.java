@@ -445,13 +445,13 @@ public class Loader {
                 }
             }
         }
-        Map<JavaModInfo.WorkshopItemID, SteamWorkshopClient.ItemDetails> workshopDetailsById = steamModeEnabled
-            ? SteamWorkshopClient.fetchItemDetails(workshopIdsToCheck)
+        Map<JavaModInfo.WorkshopItemID, SteamWorkshop.ItemDetails> workshopDetailsById = steamModeEnabled
+            ? SteamWorkshop.fetchItemDetails(workshopIdsToCheck)
             : new HashMap<>();
 
         // Pre-compute per-mod context to avoid duplicate work in prompt and load loops
         record ModCtx(String modId, File jarFile, String hash, JavaModInfo.WorkshopItemID workshopItemId,
-                      SteamWorkshopClient.ItemDetails workshopDetails, SteamWorkshopClient.BanInfo banInfo, boolean steamBanned) {}
+                      SteamWorkshop.ItemDetails workshopDetails, SteamWorkshop.BanInfo banInfo, boolean steamBanned) {}
         List<ModCtx> modContexts = new ArrayList<>();
         for (int i = 0; i < jModInfos.size(); i++) {
             JavaModInfo jModInfo = jModInfos.get(i);
@@ -459,12 +459,12 @@ public class Loader {
             File jarFile = jModInfo.getJarFileAsFile();
             String hash = LoaderUtils.sha256Hex(jarFile);
             JavaModInfo.WorkshopItemID workshopItemId = jModInfo.getWorkshopItemID();
-            SteamWorkshopClient.ItemDetails workshopDetails = steamModeEnabled && workshopItemId != null
+            SteamWorkshop.ItemDetails workshopDetails = steamModeEnabled && workshopItemId != null
                 ? workshopDetailsById.get(workshopItemId) : null;
-            SteamWorkshopClient.BanInfo banInfo = workshopItemId == null
-                ? new SteamWorkshopClient.BanInfo(SteamWorkshopClient.BAN_STATUS_UNKNOWN, "Workshop id not found in mod path.")
+            SteamWorkshop.BanInfo banInfo = workshopItemId == null
+                ? new SteamWorkshop.BanInfo(SteamWorkshop.BAN_STATUS_UNKNOWN, "Workshop id not found in mod path.")
                 : (workshopDetails != null ? workshopDetails.ban : null);
-            boolean steamBanned = steamModeEnabled && banInfo != null && SteamWorkshopClient.BAN_STATUS_YES.equals(banInfo.status);
+            boolean steamBanned = steamModeEnabled && banInfo != null && SteamWorkshop.BAN_STATUS_YES.equals(banInfo.status);
             modContexts.add(new ModCtx(modId, jarFile, hash, workshopItemId, workshopDetails, banInfo, steamBanned));
         }
 
@@ -475,7 +475,7 @@ public class Loader {
                 ModCtx ctx = modContexts.get(i);
                 if (ctx.hash == null) continue;
                 JavaModInfo jModInfo = jModInfos.get(i);
-                String workshopIdStr = SteamWorkshopClient.idToString(ctx.workshopItemId);
+                String workshopIdStr = SteamWorkshop.idToString(ctx.workshopItemId);
                 String modified = (ctx.jarFile != null && ctx.jarFile.exists())
                     ? java.time.Instant.ofEpochMilli(ctx.jarFile.lastModified())
                         .atZone(java.time.ZoneId.systemDefault())
@@ -487,7 +487,7 @@ public class Loader {
                 }
                 File zbsFile = ctx.jarFile != null ? new File(ctx.jarFile.getAbsolutePath() + ".zbs") : null;
                 JavaModInfo.WorkshopItemID workshopItemId = steamModeEnabled ? ctx.workshopItemId : null;
-                String steamBanStatus = ctx.banInfo != null ? ctx.banInfo.status : SteamWorkshopClient.BAN_STATUS_NO;
+                String steamBanStatus = ctx.banInfo != null ? ctx.banInfo.status : SteamWorkshop.BAN_STATUS_NO;
                 String steamBanReason = ctx.banInfo != null ? ctx.banInfo.reason : "";
                 LoaderUtils.ZBSCheckResult zbsResult = steamModeEnabled
                     ? LoaderUtils.checkZBS(ctx.jarFile, ctx.hash, ctx.workshopItemId, 

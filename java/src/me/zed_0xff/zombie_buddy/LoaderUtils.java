@@ -42,7 +42,7 @@ public final class LoaderUtils {
             JavaModInfo.WorkshopItemID workshopItemId,
             boolean steamModeEnabled,
             boolean allowUnsignedMods,
-            Map<JavaModInfo.WorkshopItemID, SteamWorkshopClient.ItemDetails> workshopDetailsById
+            Map<JavaModInfo.WorkshopItemID, SteamWorkshop.ItemDetails> workshopDetailsById
     ) {
         File zbsFile = new File(jarFile.getAbsolutePath() + ".zbs");
         
@@ -51,7 +51,7 @@ public final class LoaderUtils {
         }
 
         SteamID64 uploaderID = steamModeEnabled
-            ? SteamWorkshopClient.getUploaderForVerification(workshopItemId, workshopDetailsById)
+            ? SteamWorkshop.getUploaderForVerification(workshopItemId, workshopDetailsById)
             : null;
         ZBSVerifier.Verification zbs = ZBSVerifier.verify(jarFile, zbsFile, jarHash, uploaderID);
         

@@ -21,7 +21,7 @@ import com.google.gson.JsonPrimitive;
 /**
  * Steam Workshop API client for fetching mod details and ban status.
  */
-public final class SteamWorkshopClient {
+public final class SteamWorkshop {
 
     static final String BAN_STATUS_YES = "yes";
     static final String BAN_STATUS_NO = "no";
@@ -34,7 +34,7 @@ public final class SteamWorkshopClient {
         .build();
     private static final int BATCH_SIZE = 100;
 
-    private SteamWorkshopClient() {}
+    private SteamWorkshop() {}
 
     /** Ban status info for a Workshop item. */
     public static final class BanInfo {
