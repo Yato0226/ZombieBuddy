@@ -1,0 +1,33 @@
+{
+  "header": "ZB_BATCH_V6",
+  "entries": [
+    {
+      "modKey": "TestMod",
+      "modId": "TestMod",
+      "workshopItemId": 3709229404,
+      "jarAbsolutePath": "/path/to/mod.jar",
+      "sha256": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+      "modifiedHuman": "2026-04-01",
+      "priorHint": "yes",
+      "modDisplayName": "Test Mod Display Name",
+      "zbsValid": "yes",
+      "zbsSteamId": 76561198043849998,
+      "zbsNotice": "",
+      "steamBanStatus": "no",
+      "steamBanReason": ""
+    },
+    {
+      "modKey": "LocalMod",
+      "modId": "LocalMod",
+      "jarAbsolutePath": "/path/to/local.jar",
+      "sha256": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+      "modifiedHuman": "2026-04-02",
+      "priorHint": "",
+      "modDisplayName": "",
+      "zbsValid": "unsigned",
+      "zbsNotice": "",
+      "steamBanStatus": "no",
+      "steamBanReason": ""
+    }
+  ]
+}

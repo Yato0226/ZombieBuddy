@@ -193,7 +193,7 @@ public final class JavaModApprovalsStore {
             Files.createDirectories(jp.getParent());
             
             // Resolve author names
-            Map<SteamID64, String> knownNames = SteamAuthorNames.loadSteamIdToDisplayName();
+            Map<SteamID64, String> knownNames = KnownAuthors.loadSteamIdToDisplayName();
             if (knownNames != null) {
                 for (AuthorEntry ae : data.authors) {
                     if (ae.id != null && (ae.name == null || ae.name.isEmpty())) {

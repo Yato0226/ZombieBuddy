@@ -19,7 +19,7 @@ import com.google.gson.annotations.SerializedName;
 public final class JarBatchApprovalProtocol {
 
     static final String HDR_REQ  = "ZB_BATCH_V6";
-    static final String HDR_RESP = "ZB_BATCH_V3_OUT";
+    static final String HDR_RESP = "ZB_BATCH_V6_OUT";
     private static final Gson JSON = ZBGson.PRETTY;
 
     static final String TOK_ALLOW_PERSIST = "ALLOW_PERSIST";
@@ -105,20 +105,20 @@ public final class JarBatchApprovalProtocol {
         @SerializedName("token")
         public final String token;
         @SerializedName("trustedAuthorSteamId")
-        public final String trustedAuthorSteamId;
+        public final SteamID64 trustedAuthorSteamId;
 
         public OutLine(
             String modId,
             JavaModInfo.WorkshopItemID workshopItemId,
             String sha256,
             String token,
-            String trustedAuthorSteamId
+            SteamID64 trustedAuthorSteamId
         ) {
             this.modId = modId != null ? modId : "";
             this.workshopItemId = workshopItemId;
             this.sha256 = sha256 != null ? sha256 : "";
             this.token = token != null ? token : "";
-            this.trustedAuthorSteamId = trustedAuthorSteamId != null ? trustedAuthorSteamId : "";
+            this.trustedAuthorSteamId = trustedAuthorSteamId;
         }
     }
 

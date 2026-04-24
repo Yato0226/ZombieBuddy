@@ -186,7 +186,7 @@ public final class ZBSVerifier {
             if (!m3.matches()) {
                 throw new IOException("Third line must be Signature:<128 hex>");
             }
-            SteamID64 sid = new SteamID64(m2.group(1));
+            SteamID64 sid = new SteamID64(Long.parseLong(m2.group(1)));
             byte[] sig;
             try {
                 sig = hexToBytes(m3.group(1));

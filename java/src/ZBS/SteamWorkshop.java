@@ -189,14 +189,10 @@ public final class SteamWorkshop {
         JsonPrimitive p = cj.getAsJsonPrimitive();
         if (p.isString()) {
             String s = p.getAsString().trim();
-            return s.isEmpty() ? null : new SteamID64(s);
+            return s.isEmpty() ? null : new SteamID64(Long.parseLong(s));
         }
         if (p.isNumber()) {
-            try {
-                return new SteamID64(Long.toString(p.getAsLong()));
-            } catch (Exception e) {
-                return null;
-            }
+            return new SteamID64(p.getAsLong());
         }
         return null;
     }

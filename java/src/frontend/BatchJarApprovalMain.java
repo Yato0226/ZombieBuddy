@@ -93,8 +93,8 @@ public final class BatchJarApprovalMain {
                 return;
             }
 
-            // Author column: SteamID64 → label via SteamAuthorNames (GitHub + ~/.zombie_buddy cache).
-            final Map<SteamID64, String> steamIdToDisplayName = SteamAuthorNames.loadSteamIdToDisplayName();
+            // Author column: SteamID64 → label via KnownAuthors (GitHub + ~/.zombie_buddy cache).
+            final Map<SteamID64, String> steamIdToDisplayName = KnownAuthors.loadSteamIdToDisplayName();
             SwingUtilities.invokeLater(() -> showDialog(entries, resp, steamIdToDisplayName));
         } catch (Exception e) {
             e.printStackTrace(System.err);
@@ -482,9 +482,9 @@ public final class BatchJarApprovalMain {
                             tok = JarBatchApprovalProtocol.TOK_DENY_SESSION;
                         }
                     }
-                    String trustedAuthorSteamId = "";
+                    SteamID64 trustedAuthorSteamId = null;
                     if (persist && trustChecks[k].isSelected() && "yes".equals(e.zbsValid)) {
-                        trustedAuthorSteamId = e.zbsSteamId != null ? e.zbsSteamId.toString() : "";
+                        trustedAuthorSteamId = e.zbsSteamId;
                     }
                     out.add(new JarBatchApprovalProtocol.OutLine(
                         e.modKey,

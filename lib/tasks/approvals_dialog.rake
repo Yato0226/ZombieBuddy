@@ -14,7 +14,6 @@ def zb_find_java
   raise "java not found; set JAVA_HOME or install a JDK"
 end
 
-# Gson shape for {@code JavaModInfo.WorkshopItemID} / {@code SteamID64} records.
 def zb_json_entry(h)
   out = {
     "modKey"          => h[:mod_key],
@@ -30,9 +29,9 @@ def zb_json_entry(h)
     "steamBanReason"  => h[:steam_ban_reason].to_s,
   }
   wid = h[:workshop_item_id]
-  out["workshopItemId"] = { "value" => wid.to_i } if wid
-  zid = h[:zbs_steam_id].to_s.strip
-  out["zbsSteamId"] = { "value" => zid } unless zid.empty?
+  out["workshopItemId"] = wid.to_i if wid
+  zid = h[:zbs_steam_id]
+  out["zbsSteamId"] = zid.to_i if zid && !zid.to_s.strip.empty?
   out
 end
 
@@ -47,13 +46,12 @@ namespace :zb do
   desc "Run BatchJarApprovalMain with a sample request"
   task :approvals_dialog do
     require "tmpdir"
-    require "yaml"
 
-    authors = YAML.load_file("authors.yml")
-    abort "authors.yml: expected a mapping with at least one entry" unless authors.is_a?(Hash) && authors.any?
+    authors = JSON.load_file("authors.json")
+    abort "authors.yml: expected a mapping with at least one entry" unless authors.is_a?(Array) && authors.any?
 
     # Keys are SteamID64 (YAML may parse them as Integer — normalize to string).
-    first_sid = authors.keys.first.to_s
+    first_id = authors.first["id"]
     jar = "java/build/libs/ZombieBuddy.jar"
     abort "missing #{jar} (build it first)" unless File.file?(jar)
 
@@ -62,9 +60,9 @@ namespace :zb do
 
     sample = 3.times.map do |i|
       zid = case i
-            when 0 then first_sid
-            when 1 then "76561198000000001"
-            else "76561198000000002"
+            when 0 then first_id
+            when 1 then 76561198000000001
+            else 76561198000000002
             end
       label = i.zero? ? "Signed OK (authors.yml)" : "Signed OK"
       {
@@ -107,7 +105,7 @@ namespace :zb do
         prior_hint: "",
         mod_display_name: "Banned on Workshop",
         zbs_valid: "yes",
-        zbs_steam_id: "76561198000001000",
+        zbs_steam_id: 76561198000001000,
         zbs_notice: "",
         steam_ban_status: "yes",
         steam_ban_reason: "Steam moderation flag."
@@ -122,7 +120,7 @@ namespace :zb do
         prior_hint: "",
         mod_display_name: "Ban status unknown",
         zbs_valid: "yes",
-        zbs_steam_id: "76561198000001001",
+        zbs_steam_id: 76561198000001001,
         zbs_notice: "",
         steam_ban_status: "unknown",
         steam_ban_reason: "Steam API request failed (HTTP 503)."

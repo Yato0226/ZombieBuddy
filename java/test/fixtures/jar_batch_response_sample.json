@@ -1,0 +1,17 @@
+{
+  "header": "ZB_BATCH_V6_OUT",
+  "lines": [
+    {
+      "modId": "TestMod",
+      "workshopItemId": 3709229404,
+      "sha256": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+      "token": "ALLOW_PERSIST",
+      "trustedAuthorSteamId": 76561198043849998
+    },
+    {
+      "modId": "LocalMod",
+      "sha256": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+      "token": "DENY_SESSION"
+    }
+  ]
+}

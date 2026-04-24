@@ -304,23 +304,17 @@ public class Loader {
                            || JarBatchApprovalProtocol.TOK_DENY_PERSIST.equals(tok);
             if (persist) {
                 disk.put(hash, allow ? DECISION_YES : DECISION_NO);
-                String authorIdStr = ol.trustedAuthorSteamId != null ? ol.trustedAuthorSteamId.trim() : null;
-                SteamID64 authorSid = (authorIdStr != null && !authorIdStr.isEmpty()) ? new SteamID64(authorIdStr) : null;
-                storeDecision(hash, allow, ol.modId, ol.workshopItemId, authorSid);
+                storeDecision(hash, allow, ol.modId, ol.workshopItemId, ol.trustedAuthorSteamId);
             } else {
                 g_sessionJarDecisions.put(hash, allow ? DECISION_YES : DECISION_NO);
             }
-            if (authors != null) {
-                String trustedSteamId = ol.trustedAuthorSteamId == null ? "" : ol.trustedAuthorSteamId.trim();
-                if (!trustedSteamId.isEmpty()) {
-                    SteamID64 sid = new SteamID64(trustedSteamId);
-                    authors.compute(sid, (k, v) -> {
-                        if (v == null) {
-                            return new AuthorEntry(k, true, new LinkedHashSet<>(), null);
-                        }
-                        return new AuthorEntry(k, true, new LinkedHashSet<>(v.keys), v.name);
-                    });
-                }
+            if (authors != null && ol.trustedAuthorSteamId != null) {
+                authors.compute(ol.trustedAuthorSteamId, (k, v) -> {
+                    if (v == null) {
+                        return new AuthorEntry(k, true, new LinkedHashSet<>(), null);
+                    }
+                    return new AuthorEntry(k, true, new LinkedHashSet<>(v.keys), v.name);
+                });
             }
         }
     }
