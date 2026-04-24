@@ -498,11 +498,11 @@ public class Loader {
                             zbsNotice = "";
                         } else {
                             zbsValid = "no";
-                            zbsNotice = "Missing .zbs sidecar (allow_unsigned_mods=false)";
+                            zbsNotice = "Missing .zbs file (allow_unsigned_mods=false)";
                         }
                     } else {
-                        SteamID64 uploader_id = SteamWorkshopClient.getUploaderForVerification(ctx.workshopItemId, workshopDetailsById);
-                        ZBSVerifier.Verification zbs = ZBSVerifier.verify(ctx.jarFile, zbsFile, ctx.hash, uploader_id);
+                        SteamID64 uploaderID = SteamWorkshopClient.getUploaderForVerification(ctx.workshopItemId, workshopDetailsById);
+                        ZBSVerifier.Verification zbs = ZBSVerifier.verify(ctx.jarFile, zbsFile, ctx.hash, uploaderID);
                         mergeAuthorKeysFromVerification(g_authors, zbs);
                         zbsValid = zbs instanceof ZBSVerifier.ValidSignature ? "yes" : "no";
                         zbsSID = zbs.sid;
@@ -577,13 +577,13 @@ public class Loader {
                 if (!zbsFile.isFile()) {
                     if (!g_allowUnsignedMods) {
                         shouldSkip = true;
-                        skipReason = " (missing .zbs; allow_unsigned_mods=false, modId=" + ctx.modId + ")";
+                        skipReason = " (missing .zbs file; allow_unsigned_mods=false, modId=" + ctx.modId + ")";
                     }
                 } else {
-                    SteamID64 uploader = steamModeEnabled
+                    SteamID64 uploaderID = steamModeEnabled
                         ? SteamWorkshopClient.getUploaderForVerification(ctx.workshopItemId, workshopDetailsById)
                         : null;
-                    ZBSVerifier.Verification zbs = ZBSVerifier.verify(ctx.jarFile, zbsFile, ctx.hash, uploader);
+                    ZBSVerifier.Verification zbs = ZBSVerifier.verify(ctx.jarFile, zbsFile, ctx.hash, uploaderID);
                     mergeAuthorKeysFromVerification(g_authors, zbs);
                     if (!(zbs instanceof ZBSVerifier.ValidSignature)) {
                         shouldSkip = true;

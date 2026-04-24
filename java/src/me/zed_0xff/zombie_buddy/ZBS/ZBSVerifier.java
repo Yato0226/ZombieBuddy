@@ -50,14 +50,14 @@ public final class ZBSVerifier {
     }
 
     /**
-     * @param workshopUploaderSteamId64 Workshop item {@code creator} (SteamID64) when the mod is installed from the Workshop content path;
+     * @param uploaderID Workshop item {@code creator} (SteamID64) when the mod is installed from the Workshop content path;
      *        {@code null} to skip uploader binding (e.g. no workshop id in path).
      */
     public static Verification verify(
         File jarFile,
         File zbsFile,
         String jarSha256Hex,
-        SteamID64 workshopUploaderSteamId64
+        SteamID64 uploaderID
     ) {
         if (zbsFile == null || !zbsFile.isFile()) {
             return new MissingSignature(null, "Missing .zbs file next to JAR: " + (zbsFile != null ? zbsFile.getName() : ""));
@@ -71,8 +71,8 @@ public final class ZBSVerifier {
         } catch (IOException e) {
             return new InvalidSignature(null, "Could not read .zbs: " + e.getMessage());
         }
-        if (workshopUploaderSteamId64 != null) {
-            if (!workshopUploaderSteamId64.equals(sid)) {
+        if (uploaderID != null) {
+            if (!uploaderID.equals(sid)) {
                 return new InvalidSignature(sid, "Declared SteamID64 does not match Workshop item uploader.");
             }
         }
