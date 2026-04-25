@@ -34,6 +34,9 @@ final class ElementDecor {
     /** Corner cap sizes in screen px (from corner slices). */
     private int topLeftW, topRightW, bottomLeftW, bottomRightW;
 
+    /** Vertical offset (px) applied on top of the box center when drawing text. Positive moves text down. */
+    public int textY = 0;
+
     public ElementDecor(String name) {
         this.name = name;
         loadFromJson(name);
@@ -50,13 +53,30 @@ final class ElementDecor {
         }
     }
 
-    /** Content box inside the borders (uses edge thickness, not corner cap size). */
-    public int contentX(int x) { return x + leftW; }
-    public int contentY(int y) { return y + topH; }
-    public int contentW(int w) { return Math.max(0, w - leftW - rightW); }
-    public int contentH(int h) { return Math.max(0, h - topH - bottomH); }
+    public Rect contentRect(int x, int y, int w, int h) {
+        // Content box inside the borders (uses edge thickness, not corner cap size).
+        return new Rect(
+            x + leftW,
+            y + topH,
+            Math.max(0, w - leftW - rightW),
+            Math.max(0, h - topH - bottomH)
+        );
+    }
 
-    public void draw(int x, int y, int w, int h) {
+    /** Draw decor and fill its content if available; otherwise fill whole rect and outline in black. */
+    public void render(int x, int y, int w, int h, Color fill) {
+        if (isLoaded()) {
+            renderInternal(x, y, w, h);
+            Rect c = contentRect(x, y, w, h);
+            Element.fillRect(c, fill);
+            return;
+        }
+
+        Element.fillRect(x, y, w, h, fill);
+        Element.outlineRect(x, y, w, h, 1, Color.BLACK);
+    }
+
+    void renderInternal(int x, int y, int w, int h) {
         if (texture == 0) {
             return;
         }
@@ -171,29 +191,12 @@ final class ElementDecor {
         topRightW = topRight.w;
         bottomLeftW = bottomLeft.w;
         bottomRightW = bottomRight.w;
+
+        textY = cfg.textY;
     }
 
     private static File resolveJsonFile(String name) {
-        File direct = new File(name + ".json");
-        if (direct.isFile()) {
-            return direct;
-        }
-        String snake = camelToSnake(name);
-        return new File(snake + ".json");
-    }
-
-    private static String camelToSnake(String s) {
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (i > 0) out.append('_');
-                out.append(Character.toLowerCase(c));
-            } else {
-                out.append(c);
-            }
-        }
-        return out.toString();
+        return new File(name + ".json");
     }
 
     private static DecorJson readJson(File jsonFile) {
@@ -237,6 +240,7 @@ final class ElementDecor {
         String image;
         AtlasJson atlas;
         TilesJson tiles;
+        int textY;
     }
 
     static final class AtlasJson {

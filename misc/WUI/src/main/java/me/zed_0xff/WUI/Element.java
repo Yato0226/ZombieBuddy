@@ -29,6 +29,13 @@ abstract class Element {
         GL11.glEnd();
     }
 
+    static void fillRect(Rect r, Color color) {
+        if (r == null) {
+            return;
+        }
+        fillRect(r.x(), r.y(), r.w(), r.h(), color);
+    }
+
     static void outlineRect(int x0, int y0, int w, int h, int lineWidth, Color color) {
         glColor(color);
         GL11.glLineWidth(lineWidth);

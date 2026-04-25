@@ -3,9 +3,11 @@ package me.zed_0xff.WUI;
 import com.google.gson.Gson;
 
 import org.lwjgl.glfw.GLFW;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
 import java.io.File;
+import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,11 +16,12 @@ import java.util.List;
  * Coordinates match {@link HelloWorld}: origin top-left, y downward (framebuffer pixels).
  */
 public class Window extends Element {
-    Color backgroundColor = Color.WHITE;
+    Color bgColor = Color.WHITE;
     String title, status;
     List<Control> controls = new ArrayList<>();
 
-    static final Color titleColor = Color.NAVY;
+    // static final Color titleBgColor = Color.NAVY;
+    static final Color titleFgColor = Color.WHITE;
     static final ElementDecor _deco = new ElementDecor("window");
 
     static final int GRIP  = 8;
@@ -48,9 +51,12 @@ public class Window extends Element {
     int resizeSnapW;
     int resizeSnapH;
 
+    private Rect contentRect;
+
     public Window(int x, int y, int width, int height, String title) {
         super(x, y, width, height);
         this.title  = title;
+        recalcContentRect();
     }
 
     public void addControl(Control control) {
@@ -274,6 +280,7 @@ public class Window extends Element {
                 break;
         }
         clampResizeInView(viewW, viewH);
+        recalcContentRect();
         setCursor(window, cursorForGrip(activeResize));
     }
 
@@ -323,6 +330,7 @@ public class Window extends Element {
             x = mx - dragGrabDx;
             y = my - dragGrabDy;
             clampPositionInView(viewW, viewH);
+            recalcContentRect();
             GLFW.glfwSetCursor(window, 0);
             return;
         }
@@ -357,34 +365,44 @@ public class Window extends Element {
         y      = Math.max(0, Math.min(y, viewH - height));
     }
 
+    private void recalcContentRect() {
+        if (_deco.isLoaded()) {
+            contentRect = _deco.contentRect(x, y, width, height);
+        } else {
+            contentRect = new Rect(x, y + titleBarHeight, width, height - titleBarHeight);
+        }
+    }
+
     public void render(int fontTex) {
         GL11.glDisable(GL11.GL_TEXTURE_2D);
 
-        if (_deco.isLoaded()) {
-            _deco.draw(x, y, width, height);
-            fillRect(
-                _deco.contentX(x),
-                _deco.contentY(y),
-                _deco.contentW(width),
-                _deco.contentH(height),
-                backgroundColor
-            );
-        } else {
-            fillRect(x, y + titleBarHeight, width, height - titleBarHeight, backgroundColor);
-            fillRect(x, y, width, titleBarHeight, titleColor);
-            outlineRect(x, y, width, height, 1, Color.BLACK);
-        }
+        _deco.render(x, y, width, height, bgColor);
 
-        GL11.glColor3f(1f, 1f, 1f);
+        glColor(titleFgColor);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, fontTex);
 
-        int lh = font.face.lineHeight + 3;
-        int ty = y + titleBarHeight - lh;
-        int titleW = font.measureTextAdvancePx(title);
-        int titleX = x + (width - titleW) / 2;
-        font.drawText(titleX, ty, title);
-        GL11.glColor3f(1f, 1f, 1f);
+        font.drawTextCentered(x, y + _deco.textY, width, title);
+
+        // Render child controls clipped to the content rect.
+        if (!controls.isEmpty() && !contentRect.isEmpty()) {
+            int scale = HelloWorld.uiScale();
+            IntBuffer vp = BufferUtils.createIntBuffer(4);
+            GL11.glGetIntegerv(GL11.GL_VIEWPORT, vp);
+            int fbH = vp.get(3);
+
+            GL11.glEnable(GL11.GL_SCISSOR_TEST);
+            GL11.glScissor(
+                contentRect.x() * scale,
+                fbH - (contentRect.y() + contentRect.h()) * scale,
+                contentRect.w() * scale,
+                contentRect.h() * scale
+            );
+            for (Control c : controls) {
+                c.render(fontTex, contentRect.x(), contentRect.y());
+            }
+            GL11.glDisable(GL11.GL_SCISSOR_TEST);
+        }
     }
 
     public void close() {

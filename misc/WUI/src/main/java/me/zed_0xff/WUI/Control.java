@@ -6,4 +6,7 @@ abstract class Control extends Element {
     public Control(int x, int y, int w, int h){
         super(x, y, w, h);
     }
+
+    /** Render this control at (originX + x, originY + y). */
+    public abstract void render(int fontTex, int originX, int originY);
 }

@@ -186,4 +186,26 @@ class Font {
 
         GL11.glEnd();
     }
+
+    /**
+     * Draw a single-line string centered horizontally within {@code boxW} and vertically around {@code centerY}.
+     * X centering uses advance (xa + kerning). Y centering uses face.base within face.lineHeight.
+     *
+     * @param boxX    left of box
+     * @param centerY absolute vertical center for the text
+     * @param boxW    width of box
+     * @param s       text to draw
+     */
+    void drawTextCentered(int boxX, int centerY, int boxW, String s) {
+        if (s == null || s.isEmpty()) {
+            return;
+        }
+        int tw = measureTextAdvancePx(s);
+        int tx = boxX + (boxW - tw) / 2;
+
+        int baselineY = centerY + face.base - face.lineHeight / 2;
+        int ty = baselineY - face.base;
+
+        drawText(tx, ty, s);
+    }
 }

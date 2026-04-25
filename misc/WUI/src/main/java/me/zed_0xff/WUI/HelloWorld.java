@@ -73,15 +73,15 @@ public final class HelloWorld {
             int scale = uiScale();
             int lx = (int)(f[0] / scale);
             int ly = (int)(f[1] / scale);
-            boolean startedDrag = window.handleMouseButton(win, button, action, lx, ly);
-            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
-                && action == GLFW.GLFW_PRESS
-                && !startedDrag
-                && !window.contains(lx, ly)) {
-                scaleIdx = (scaleIdx + 1) % SCALES.length;
-                int ui = uiScale();
-                GLFW.glfwSetWindowTitle(win, "Desktop — " + ui + "x");
-            }
+            /*boolean startedDrag =*/ window.handleMouseButton(win, button, action, lx, ly);
+            // if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
+            //     && action == GLFW.GLFW_PRESS
+            //     && !startedDrag
+            //     && !window.contains(lx, ly)) {
+            //     scaleIdx = (scaleIdx + 1) % SCALES.length;
+            //     int ui = uiScale();
+            //     GLFW.glfwSetWindowTitle(win, "Desktop — " + ui + "x");
+            // }
         });
 
         GLFW.glfwSetCursorPosCallback(glWindow, (win, xpos, ypos) -> {
