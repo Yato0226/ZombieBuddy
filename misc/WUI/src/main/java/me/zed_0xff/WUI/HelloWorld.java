@@ -1,8 +1,5 @@
 package me.zed_0xff.WUI;
 
-import com.google.gson.Gson;
-import com.google.gson.annotations.SerializedName;
-
 import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
@@ -59,12 +56,11 @@ public final class HelloWorld {
 
         File assets = new File(".");
         File cursorsJson = new File(assets, "cursors.json");
-        Gson gson = new Gson();
-        CursorMgr.create(cursorsJson, gson);
+        CursorMgr.create(cursorsJson);
 
         Window window = new Window(80, 48, 420, 260, "Window");
         window.addControl(new Button(10, 10, 100, 20, "OK"));
-        window.addControl(new CheckBox(10, 30, 100, 20, "test"));
+        window.addControl(new CheckBox(10, 40, 100, 20, "test"));
 
         GLFW.glfwSetMouseButtonCallback(glWindow, (win, button, action, mods) -> {
             double[] cx = new double[1];

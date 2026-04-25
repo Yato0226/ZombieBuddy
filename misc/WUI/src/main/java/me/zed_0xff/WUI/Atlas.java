@@ -20,12 +20,39 @@ import javax.imageio.ImageIO;
 final class Atlas {
     final BufferedImage img;
     final int w, h;
+    java.util.Map<String, TileJson> tiles;
+    java.util.Map<String, String> metadata;
 
     private Atlas(BufferedImage img, int w, int h) {
-        this.img = img;
-        this.w   = w;
-        this.h   = h;
+        this.img = img; this.w = w; this.h = h;
     }
+
+    /** Load atlas by name: reads {@code {name}.json} + its image. */
+    Atlas(String name) { this(new File(name + ".json")); }
+
+    /** Load atlas from an explicit JSON file + its image. */
+    Atlas(File jsonFile) {
+        JsonBase cfg = readJson(jsonFile, new Gson(), JsonBase.class);
+        BufferedImage loaded = null;
+        int lw = 0, lh = 0;
+        if (cfg != null && cfg.image != null && cfg.atlas != null) {
+            Atlas a = load(jsonFile.getParentFile(), cfg.image, cfg.atlas.width, cfg.atlas.height);
+            if (a != null) { loaded = a.img; lw = a.w; lh = a.h; }
+        }
+        this.img = loaded; this.w = lw; this.h = lh;
+        this.tiles    = cfg != null ? cfg.tiles    : null;
+        this.metadata = cfg != null ? cfg.metadata : null;
+    }
+
+    boolean isLoaded() { return img != null; }
+
+    int getMetaInt(String key, int fallback) {
+        if (metadata == null) return fallback;
+        String v = metadata.get(key);
+        if (v == null) return fallback;
+        try { return Integer.parseInt(v); } catch (NumberFormatException e) { return fallback; }
+    }
+
 
     /**
      * Load a PNG and verify it matches the declared atlas dimensions.
@@ -115,6 +142,13 @@ final class Atlas {
     static class TileJson {
         int x, y, w, h;
         java.util.Map<String, String> metadata;
+
+        int getMetaInt(String key, int fallback) {
+            if (metadata == null) return fallback;
+            String v = metadata.get(key);
+            if (v == null) return fallback;
+            try { return Integer.parseInt(v); } catch (NumberFormatException e) { return fallback; }
+        }
     }
 
     private static void warn(String msg) {

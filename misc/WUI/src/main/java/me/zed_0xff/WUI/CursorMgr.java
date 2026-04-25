@@ -1,6 +1,5 @@
 package me.zed_0xff.WUI;
 
-import com.google.gson.Gson;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.system.MemoryStack;
@@ -21,24 +20,22 @@ public final class CursorMgr {
     };
 
     /** Load custom cursors from JSON; falls back to GLFW standard cursors on any failure. */
-    public static void create(File cursorsJson, Gson gson) {
+    public static void create(File cursorsJson) {
         if (initialized) return;
         initialized = true;
 
-        Atlas.JsonBase cfg = Atlas.readJson(cursorsJson, gson, Atlas.JsonBase.class);
-        if (cfg == null || cfg.image == null || cfg.atlas == null || cfg.tiles == null
-                || !cfg.tiles.keySet().containsAll(Arrays.asList(TILE_NAMES))) {
+        Atlas atlas = new Atlas(cursorsJson);
+        if (!atlas.isLoaded() || atlas.tiles == null
+                || !atlas.tiles.keySet().containsAll(Arrays.asList(TILE_NAMES))) {
             createStandard(); return;
         }
-        Atlas atlas = Atlas.load(cursorsJson.getParentFile(), cfg.image, cfg.atlas.width, cfg.atlas.height);
-        if (atlas == null) { createStandard(); return; }
 
         long[] h = new long[TILE_NAMES.length];
         for (int i = 0; i < TILE_NAMES.length; i++) {
-            Atlas.TileJson tile = cfg.tiles.get(TILE_NAMES[i]);
+            Atlas.TileJson tile = atlas.tiles.get(TILE_NAMES[i]);
             if (!atlas.fits(tile)) { destroyRange(h, i); createStandard(); return; }
-            int hx = metaInt(tile, "hx", i == 0 ? Math.min(4, tile.w / 4) : tile.w / 2);
-            int hy = metaInt(tile, "hy", i == 0 ? Math.min(4, tile.h / 4) : tile.h / 2);
+            int hx = tile.getMetaInt("hx", i == 0 ? Math.min(4, tile.w / 4) : tile.w / 2);
+            int hy = tile.getMetaInt("hy", i == 0 ? Math.min(4, tile.h / 4) : tile.h / 2);
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 GLFWImage img = GLFWImage.malloc(stack);
                 img.set(tile.w, tile.h, atlas.cellToRgba(tile));
@@ -80,9 +77,4 @@ public final class CursorMgr {
         for (int j = 0; j < count; j++) if (h[j] != 0) GLFW.glfwDestroyCursor(h[j]);
     }
 
-    private static int metaInt(Atlas.TileJson tile, String key, int fallback) {
-        if (tile.metadata == null) return fallback;
-        String v = tile.metadata.get(key);
-        return v != null ? Integer.parseInt(v) : fallback;
-    }
 }
