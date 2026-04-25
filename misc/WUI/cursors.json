@@ -2,7 +2,7 @@
   "image": "cursors.png",
   "atlas": { "width": 102, "height": 27 },
   "tiles": {
-    "arrow":      { "x":  0, "y": 0, "w": 12, "h": 20 },
+    "arrow":      { "x":  0, "y": 0, "w": 12, "h": 20, "metadata": { "hx": 0, "hy": 0 } },
     "resizeH":    { "x": 12, "y": 0, "w": 16, "h": 10 },
     "resizeW":    { "x": 28, "y": 0, "w": 12, "h": 18 },
     "resizeNWSE": { "x": 40, "y": 0, "w": 12, "h": 12 },

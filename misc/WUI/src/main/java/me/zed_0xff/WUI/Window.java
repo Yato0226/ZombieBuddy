@@ -137,7 +137,15 @@ public class Window extends Element {
         if (g != ResizeGrip.NONE) {
             CursorMgr.set(window, cursorForGrip(g));
         } else if (contains(mx, my)) {
-            CursorMgr.set(window, 0);
+            long cur = 0;
+            if (!controls.isEmpty() && !contentRect.isEmpty()) {
+                int cx = mx - contentRect.x(), cy = my - contentRect.y();
+                for (Control c : controls) {
+                    long cc = c.cursorAt(cx, cy);
+                    if (cc != 0) { cur = cc; break; }
+                }
+            }
+            CursorMgr.set(window, cur);
         } else {
             CursorMgr.setDefault(window);
         }

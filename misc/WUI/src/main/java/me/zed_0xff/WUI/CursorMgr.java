@@ -34,8 +34,8 @@ public final class CursorMgr {
         for (int i = 0; i < TILE_NAMES.length; i++) {
             Atlas.TileJson tile = atlas.tiles.get(TILE_NAMES[i]);
             if (!atlas.fits(tile)) { destroyRange(h, i); createStandard(); return; }
-            int hx = tile.getMetaInt("hx", i == 0 ? Math.min(4, tile.w / 4) : tile.w / 2);
-            int hy = tile.getMetaInt("hy", i == 0 ? Math.min(4, tile.h / 4) : tile.h / 2);
+            int hx = tile.getMetaInt("hx", tile.w / 2);
+            int hy = tile.getMetaInt("hy", tile.h / 2);
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 GLFWImage img = GLFWImage.malloc(stack);
                 img.set(tile.w, tile.h, atlas.cellToRgba(tile));

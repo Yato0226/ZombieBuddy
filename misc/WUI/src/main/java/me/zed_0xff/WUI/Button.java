@@ -3,7 +3,7 @@ package me.zed_0xff.WUI;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 
-class Button extends Label {
+class Button extends ButtonBase {
     static final ElementDecor _normalDeco  = new ElementDecor("button");
     static final ElementDecor _pressedDeco = new ElementDecor("buttonDown");
 
@@ -16,8 +16,7 @@ class Button extends Label {
 
     @Override
     public void handleMouseButton(int action, int mx, int my) {
-        boolean hit = mx >= x && mx < x + width && my >= y && my < y + height;
-        if (action == GLFW.GLFW_PRESS && hit) {
+        if (action == GLFW.GLFW_PRESS && isActiveAt(mx, my)) {
             pressed = true;
         } else if (action == GLFW.GLFW_RELEASE) {
             pressed = false;

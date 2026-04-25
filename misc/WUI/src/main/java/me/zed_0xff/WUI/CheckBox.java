@@ -3,7 +3,7 @@ package me.zed_0xff.WUI;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 
-class CheckBox extends Label {
+class CheckBox extends ButtonBase {
     static final Atlas atlas = new Atlas("checkbox");
     private static int tex;
 
@@ -15,12 +15,19 @@ class CheckBox extends Label {
     }
 
     @Override
+    protected boolean isActiveAt(int mx, int my) {
+        if (mx < x || my < y || my >= y + height) return false;
+        int iconW = atlas.getMetaInt("textX", height + 2);
+        int textW = (text != null && !text.isEmpty()) ? font.measureTextAdvancePx(text) : 0;
+        return mx < x + iconW + textW;
+    }
+
+    @Override
     public void handleMouseButton(int action, int mx, int my) {
-        boolean hit = mx >= x && mx < x + width && my >= y && my < y + height;
-        if (action == GLFW.GLFW_PRESS && hit) {
+        if (action == GLFW.GLFW_PRESS && isActiveAt(mx, my)) {
             pressed = true;
         } else if (action == GLFW.GLFW_RELEASE) {
-            if (pressed && hit) checked = !checked;
+            if (pressed && isActiveAt(mx, my)) checked = !checked;
             pressed = false;
         }
     }
