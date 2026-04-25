@@ -34,13 +34,6 @@ public class Window extends Element {
         NONE, N, S, E, W, NE, NW, SE, SW
     }
 
-    static long curArrow;
-    static long curH;
-    static long curV;
-    static long curNwse;
-    static long curNesw;
-    static boolean cursorsCreated;
-
     boolean dragging;
     int dragGrabDx;
     int dragGrabDy;
@@ -71,72 +64,6 @@ public class Window extends Element {
         this.status = s;
     }
 
-    /**
-     * Loads {@code cursors.json} + image (see {@link CursorMgr}); falls back to GLFW standard cursors if missing/invalid.
-     */
-    public static void createCursors(File cursorsJson, Gson gson) {
-        if (cursorsCreated) {
-            return;
-        }
-        cursorsCreated = true;
-        long[] handles = CursorMgr.loadCursors(cursorsJson, gson);
-        if (handles != null) {
-            curArrow = handles[0];
-            curH     = handles[1];
-            curV     = handles[2];
-            curNwse  = handles[3];
-            curNesw  = handles[4];
-            // curText = handles[5]
-            return;
-        }
-        createStandardCursors();
-    }
-
-    private static void createStandardCursors() {
-        curArrow = GLFW.glfwCreateStandardCursor(GLFW.GLFW_ARROW_CURSOR);
-        curH     = GLFW.glfwCreateStandardCursor(GLFW.GLFW_HRESIZE_CURSOR);
-        curV     = GLFW.glfwCreateStandardCursor(GLFW.GLFW_VRESIZE_CURSOR);
-        curNwse  = GLFW.glfwCreateStandardCursor(GLFW.GLFW_RESIZE_NWSE_CURSOR);
-        curNesw  = GLFW.glfwCreateStandardCursor(GLFW.GLFW_RESIZE_NESW_CURSOR);
-
-        if (curNwse == 0) {
-            curNwse = GLFW.glfwCreateStandardCursor(GLFW.GLFW_CROSSHAIR_CURSOR);
-        }
-        if (curNwse == 0) {
-            curNwse = curH;
-        }
-        if (curNesw == 0) {
-            curNesw = GLFW.glfwCreateStandardCursor(GLFW.GLFW_CROSSHAIR_CURSOR);
-        }
-        if (curNesw == 0) {
-            curNesw = curV;
-        }
-    }
-
-    public static void destroyCursors() {
-        if (!cursorsCreated) {
-            return;
-        }
-        cursorsCreated = false;
-        long[] handles = {curH, curV, curNwse, curNesw, curArrow};
-        for (int i = 0; i < handles.length; i++) {
-            long c = handles[i];
-            if (c == 0) {
-                continue;
-            }
-            boolean duplicate = false;
-            for (int j = 0; j < i; j++) {
-                if (handles[j] == c) {
-                    duplicate = true;
-                    break;
-                }
-            }
-            if (!duplicate) {
-                GLFW.glfwDestroyCursor(c);
-            }
-        }
-        curArrow = curH = curV = curNwse = curNesw = 0;
-    }
 
     public boolean contains(int mx, int my) {
         return mx >= x && mx < x + width && my >= y && my < y + height;
@@ -197,35 +124,22 @@ public class Window extends Element {
 
     private static long cursorForGrip(ResizeGrip g) {
         switch (g) {
-            case N:
-            case S:
-                return curV;
-            case E:
-            case W:
-                return curH;
-            case NW:
-            case SE:
-                return curNwse;
-            case NE:
-            case SW:
-                return curNesw;
-            default:
-                return curArrow;
+            case N: case S: return CursorMgr.resizeV;
+            case E: case W: return CursorMgr.resizeH;
+            case NW: case SE: return CursorMgr.curNWSE;
+            case NE: case SW: return CursorMgr.curNESW;
+            default: return CursorMgr.arrow;
         }
-    }
-
-    private void setCursor(long window, long cursor) {
-        GLFW.glfwSetCursor(window, cursor == 0 ? curArrow : cursor);
     }
 
     private void updateHoverCursor(long window, int mx, int my) {
         ResizeGrip g = hitTestResize(mx, my);
         if (g != ResizeGrip.NONE) {
-            setCursor(window, cursorForGrip(g));
+            CursorMgr.set(window, cursorForGrip(g));
         } else if (contains(mx, my)) {
-            setCursor(window, 0);
+            CursorMgr.set(window, 0);
         } else {
-            GLFW.glfwSetCursor(window, 0);
+            CursorMgr.setDefault(window);
         }
     }
 
@@ -283,7 +197,7 @@ public class Window extends Element {
         }
         clampResizeInView(viewW, viewH);
         recalcContentRect();
-        setCursor(window, cursorForGrip(activeResize));
+        CursorMgr.set(window, cursorForGrip(activeResize));
     }
 
     /**
@@ -338,7 +252,7 @@ public class Window extends Element {
             y = my - dragGrabDy;
             clampPositionInView(viewW, viewH);
             recalcContentRect();
-            setCursor(window, 0);
+            CursorMgr.set(window, 0);
             return;
         }
         updateHoverCursor(window, mx, my);

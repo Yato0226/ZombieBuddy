@@ -60,7 +60,7 @@ public final class HelloWorld {
         File assets = new File(".");
         File cursorsJson = new File(assets, "cursors.json");
         Gson gson = new Gson();
-        Window.createCursors(cursorsJson, gson);
+        CursorMgr.create(cursorsJson, gson);
 
         Window window = new Window(80, 48, 420, 260, "Window");
         window.addControl(new Button(10, 10, 100, 20, "OK"));
@@ -116,7 +116,7 @@ public final class HelloWorld {
 
         GL11.glDeleteTextures(fontTex);
         GLFW.glfwSetCursor(glWindow, 0);
-        Window.destroyCursors();
+        CursorMgr.destroy();
         GLFW.glfwDestroyWindow(glWindow);
         GLFW.glfwTerminate();
     }
