@@ -31,19 +31,20 @@ class Utils {
         return uploadRgbaTexture2d(img);
     }
 
+    static void putArgbAsRgba(ByteBuffer buf, int argb) {
+        buf.put((byte) ((argb >> 16) & 0xff));
+        buf.put((byte) ((argb >> 8)  & 0xff));
+        buf.put((byte) (argb         & 0xff));
+        buf.put((byte) ((argb >> 24) & 0xff));
+    }
+
     static int uploadRgbaTexture2d(BufferedImage img) {
         int tw = img.getWidth();
         int th = img.getHeight();
         ByteBuffer pixels = BufferUtils.createByteBuffer(tw * th * 4);
-        for (int y = 0; y < th; y++) {
-            for (int x = 0; x < tw; x++) {
-                int argb = img.getRGB(x, y);
-                pixels.put((byte) ((argb >> 16) & 0xff));
-                pixels.put((byte) ((argb >> 8) & 0xff));
-                pixels.put((byte) (argb & 0xff));
-                pixels.put((byte) ((argb >> 24) & 0xff));
-            }
-        }
+        for (int y = 0; y < th; y++)
+            for (int x = 0; x < tw; x++)
+                putArgbAsRgba(pixels, img.getRGB(x, y));
         pixels.flip();
 
         int tex = GL11.glGenTextures();

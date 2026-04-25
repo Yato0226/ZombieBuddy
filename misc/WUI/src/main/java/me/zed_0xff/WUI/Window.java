@@ -1,12 +1,9 @@
 package me.zed_0xff.WUI;
 
-import com.google.gson.Gson;
-
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
-import java.io.File;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,7 +17,7 @@ public class Window extends Element {
     Color bgColor = Color.WHITE;
     String title, status;
     private final List<Control> controls = new ArrayList<>();
-    private final HashMap<String, List<RadioButton>> radioButtons = new HashMap<>();
+    private final HashMap<String, RadioGroup> radioButtons = new HashMap<>();
 
     // static final Color titleBgColor = Color.NAVY;
     static final Color titleFgColor = Color.WHITE;
@@ -56,15 +53,13 @@ public class Window extends Element {
 
     public Window addControl(java.util.function.Function<Window, Control> factory) {
         Control control = factory.apply(this);
-        if (control == null) {
-            throw new IllegalArgumentException("Factory returned null");
-        }
+        if (control == null) throw new IllegalArgumentException("Factory returned null");
         controls.add(control);
-        if (control instanceof RadioButton radio) {
-            String key = radio.getKey();
-            radioButtons.computeIfAbsent(key, k -> new ArrayList<>()).add(radio);
-        }
         return this;
+    }
+
+    void registerRadioButton(RadioButton rb) {
+        radioButtons.computeIfAbsent(rb.getKey(), k -> new RadioGroup()).add(rb);
     }
 
     public void setTitle(String s) {
@@ -251,8 +246,13 @@ public class Window extends Element {
         }
         // Forward press/release to child controls (content-relative coords).
         if (!controls.isEmpty() && !contentRect.isEmpty()) {
-            for (Control c : controls) {
-                c.handleMouseButton(action, mx - contentRect.x(), my - contentRect.y());
+            int rx = mx - contentRect.x(), ry = my - contentRect.y();
+            if (action == GLFW.GLFW_PRESS) {
+                for (Control c : controls) {
+                    if (c.isActiveAt(rx, ry)) { c.handleMouseButton(action, rx, ry); break; }
+                }
+            } else {
+                for (Control c : controls) c.handleMouseButton(action, rx, ry);
             }
         }
         return false;
@@ -318,11 +318,10 @@ public class Window extends Element {
 
         _deco.render(x, y, width, height, bgColor);
 
-        glColor(titleFgColor);
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, fontTex);
-
-        font.drawTextCentered(x, y + _deco.textY, width, title);
+        withTexture(fontTex, () -> {
+            glColor(titleFgColor);
+            font.drawTextCentered(x, y + _deco.textY, width, title);
+        });
 
         // Render child controls clipped to the content rect.
         if (!controls.isEmpty() && !contentRect.isEmpty()) {
@@ -349,10 +348,7 @@ public class Window extends Element {
     }
 
     void onRadioButtonChecked(RadioButton radio) {
-        String key = radio.getKey();
-        radioButtons.get(key)
-                .stream()
-                .filter(r -> r != radio)
-                .forEach(r -> r.checked = false);
+        RadioGroup group = radioButtons.get(radio.getKey());
+        if (group != null) group.select(radio);
     }
 }

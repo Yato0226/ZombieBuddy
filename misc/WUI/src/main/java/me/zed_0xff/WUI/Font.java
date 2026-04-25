@@ -1,15 +1,9 @@
 package me.zed_0xff.WUI;
 
-import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.imageio.ImageIO;
 
 import org.lwjgl.opengl.GL11;
 
@@ -55,54 +49,22 @@ class Font {
 
     public Font() {
         File jsonFile = new File("font.json");
-        Gson gson = new Gson();
-        FontJson cfg;
-        try (InputStreamReader r = new InputStreamReader(Files.newInputStream(jsonFile.toPath()))) {
-            cfg = gson.fromJson(r, FontJson.class);
-        } catch (IOException e) {
-            throw new IllegalStateException("failed reading json: " + e.getMessage());
-        }
-        if (cfg == null || cfg.glyphs == null || cfg.glyphs.isEmpty()) {
-            throw new IllegalStateException("no glyphs in " + jsonFile);
-        }
+        FontJson cfg = Atlas.readJson(jsonFile, new Gson(), FontJson.class);
+        if (cfg == null) throw new IllegalStateException("failed reading " + jsonFile);
+        if (cfg.glyphs == null || cfg.glyphs.isEmpty()) throw new IllegalStateException("no glyphs in " + jsonFile);
 
-        File pngFile = new File(cfg.atlas.image);
-        if (!pngFile.isFile()) {
-            throw new IllegalStateException("atlas image not found: " + pngFile);
-        }
+        Atlas a = Atlas.load(jsonFile.getParentFile(), cfg.atlas.image, cfg.atlas.width, cfg.atlas.height);
+        if (a == null) throw new RuntimeException("failed loading font atlas: " + cfg.atlas.image);
+        atlasW = a.w;
+        atlasH = a.h;
+        fontTex = a.uploadTexture();
 
-        for (GlyphJson g : cfg.glyphs) {
-            glyphById.put(g.id, g);
-        }
+        for (GlyphJson g : cfg.glyphs) glyphById.put(g.id, g);
         spaceGlyph = glyphById.getOrDefault(32, cfg.glyphs.get(0));
         if (cfg.kernings != null) {
-            for (KerningJson k : cfg.kernings) {
-                kernAmount.put(Utils.packPair(k.first, k.second), k.amount);
-            }
+            for (KerningJson k : cfg.kernings) kernAmount.put(Utils.packPair(k.first, k.second), k.amount);
         }
         face = cfg.face;
-        fontTex = loadTexture(pngFile, cfg.atlas);
-    }
-
-    int loadTexture(File path, AtlasJson atlas) {
-        BufferedImage img;
-        try {
-            img = ImageIO.read(path);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        if (img == null) {
-            throw new RuntimeException("ImageIO.read failed: " + path);
-        }
-
-        atlasW = img.getWidth();
-        atlasH = img.getHeight();
-        if (atlas.width != atlasW || atlas.height != atlasH) {
-            System.err.println("warn: atlas size json " + atlas.width + "x" + atlas.height
-                + " != png " + atlasW + "x" + atlasH);
-        }
-
-        return Utils.uploadRgbaTexture2d(img);
     }
 
     /** Horizontal advance of the first line, in font pixels (same rules as {@link #drawText}). */

@@ -50,22 +50,18 @@ final class ElementDecor {
         int topMidW = Math.max(0, w - topLeftW - topRightW);
         int botMidW = Math.max(0, w - bottomLeftW - bottomRightW);
 
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
-        GL11.glColor3f(1f, 1f, 1f);
-
-        blit(topLeft,      x,                    y,            topLeftW,  topH);
-        blit(topCenter,    x + topLeftW,         y,            topMidW,   topH);
-        blit(topRight,     x + w - topRightW,    y,            topRightW, topH);
-        blit(middleLeft,   x,                    y + topH,     leftW,     innerH);
-        blit(middleCenter, x + leftW,            y + topH,     innerW,    innerH);
-        blit(middleRight,  x + w - rightW,       y + topH,     rightW,    innerH);
-        blit(bottomLeft,   x,                    y + h - bottomH, bottomLeftW,  bottomH);
-        blit(bottomCenter, x + bottomLeftW,      y + h - bottomH, botMidW,      bottomH);
-        blit(bottomRight,  x + w - bottomRightW, y + h - bottomH, bottomRightW, bottomH);
-
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        Element.withTexture(texture, () -> {
+            GL11.glColor3f(1f, 1f, 1f);
+            blit(topLeft,      x,                    y,                topLeftW,    topH);
+            blit(topCenter,    x + topLeftW,         y,                topMidW,     topH);
+            blit(topRight,     x + w - topRightW,    y,                topRightW,   topH);
+            blit(middleLeft,   x,                    y + topH,         leftW,       innerH);
+            blit(middleCenter, x + leftW,            y + topH,         innerW,      innerH);
+            blit(middleRight,  x + w - rightW,       y + topH,         rightW,      innerH);
+            blit(bottomLeft,   x,                    y + h - bottomH,  bottomLeftW,  bottomH);
+            blit(bottomCenter, x + bottomLeftW,      y + h - bottomH,  botMidW,      bottomH);
+            blit(bottomRight,  x + w - bottomRightW, y + h - bottomH,  bottomRightW, bottomH);
+        });
     }
 
     private void loadFromJson(String name) {
@@ -101,12 +97,7 @@ final class ElementDecor {
         if (sw <= 0 || sh <= 0) return;
         float u0 = r.x / (float) atlasW, v0 = r.y / (float) atlasH;
         float u1 = (r.x + r.w) / (float) atlasW, v1 = (r.y + r.h) / (float) atlasH;
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glTexCoord2f(u0, v0); GL11.glVertex2f(sx,      sy);
-        GL11.glTexCoord2f(u1, v0); GL11.glVertex2f(sx + sw, sy);
-        GL11.glTexCoord2f(u1, v1); GL11.glVertex2f(sx + sw, sy + sh);
-        GL11.glTexCoord2f(u0, v1); GL11.glVertex2f(sx,      sy + sh);
-        GL11.glEnd();
+        Element.drawTexRect(sx, sy, sw, sh, u0, v0, u1, v1);
     }
 
     private void warn(String msg) { System.err.println("ElementDecor(" + name + "): " + msg); }

@@ -48,8 +48,12 @@ final class Atlas {
     boolean isLoaded() { return img != null; }
 
     int getMetaInt(String key, int fallback) {
-        if (metadata == null) return fallback;
-        String v = metadata.get(key);
+        return parseMeta(metadata, key, fallback);
+    }
+
+    static int parseMeta(java.util.Map<String, String> map, String key, int fallback) {
+        if (map == null) return fallback;
+        String v = map.get(key);
         if (v == null) return fallback;
         try { return Integer.parseInt(v); } catch (NumberFormatException e) { return fallback; }
     }
@@ -101,15 +105,9 @@ final class Atlas {
     /** Extract one tile cell as an RGBA8888 {@link ByteBuffer}, top-row first (GLFW / GL convention). */
     ByteBuffer cellToRgba(TileJson t) {
         ByteBuffer buf = BufferUtils.createByteBuffer(t.w * t.h * 4);
-        for (int y = 0; y < t.h; y++) {
-            for (int x = 0; x < t.w; x++) {
-                int argb = img.getRGB(t.x + x, t.y + y);
-                buf.put((byte) ((argb >> 16) & 0xff));
-                buf.put((byte) ((argb >> 8)  & 0xff));
-                buf.put((byte) (argb         & 0xff));
-                buf.put((byte) ((argb >> 24) & 0xff));
-            }
-        }
+        for (int y = 0; y < t.h; y++)
+            for (int x = 0; x < t.w; x++)
+                Utils.putArgbAsRgba(buf, img.getRGB(t.x + x, t.y + y));
         buf.flip();
         return buf;
     }
@@ -145,10 +143,7 @@ final class Atlas {
         java.util.Map<String, String> metadata;
 
         int getMetaInt(String key, int fallback) {
-            if (metadata == null) return fallback;
-            String v = metadata.get(key);
-            if (v == null) return fallback;
-            try { return Integer.parseInt(v); } catch (NumberFormatException e) { return fallback; }
+            return parseMeta(metadata, key, fallback);
         }
     }
 

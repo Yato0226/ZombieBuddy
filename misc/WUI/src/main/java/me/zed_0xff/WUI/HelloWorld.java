@@ -1,22 +1,13 @@
 package me.zed_0xff.WUI;
 
-import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.MemoryStack;
 
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import javax.imageio.ImageIO;
 
 public final class HelloWorld {
     static final int WIN_W = 640;
