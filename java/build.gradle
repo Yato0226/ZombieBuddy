@@ -68,6 +68,7 @@ shadowJar {
     mergeServiceFiles()
     
     relocate 'com.google.gson', 'zb.com.google.gson'
+    relocate 'org.bouncycastle', 'zb.org.bouncycastle'
 
     exclude 'META-INF/*.SF'
     exclude 'META-INF/*.DSA'
