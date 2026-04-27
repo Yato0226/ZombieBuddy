@@ -17,14 +17,34 @@ task :clean => :chdir do
   sh "gradle clean"
 end
 
+def run_game(zb_args = {}, pz_args = [])
+  ENV['ZB_ARGS'].to_s.split(",").each do |arg|
+    k, v = arg.split("=", 2)
+    zb_args[k] = v
+  end
+  ENV['PZ_ARGS'].to_s.split.each do |arg|
+    pz_args << arg
+  end
+  zb_args[:experimental] = true
+  pargs = zb_args.map { |k, v| "-Dzb.#{k}=#{v}" }
+  sh File.join(GAME_ROOT, "MacOS/JavaAppLauncher"), "-javaagent:ZombieBuddy.jar", *pargs, "--", *pz_args
+end
+
 desc "run the game"
 task :run, :verbosity, :exit_after_game_init do |t, args|
-  cmd_args = ['experimental']
-  cmd_args << "verbosity=#{args.verbosity}" if args.verbosity
-  cmd_args << "exit_after_game_init" if args.exit_after_game_init
-  cmd_args_str = cmd_args.empty? ? "" : "=" + cmd_args.join(",")
+  args = {}
+  args[:exit_after_game_init] = true if args.exit_after_game_init
+  args[:verbosity] = args.verbosity if args.verbosity
+  run_game(args)
+end
 
-  sh File.join(GAME_ROOT, "MacOS/JavaAppLauncher"), "-javaagent:ZombieBuddy.jar#{cmd_args_str}", "--"
+namespace :run do
+  %w'console imgui swing tinyfd'.each do |frontend|
+    desc "run the game with #{frontend} frontend"
+    task(frontend) do |t, args|
+      run_game({frontend: })
+    end
+  end
 end
 
 desc "show steam url"

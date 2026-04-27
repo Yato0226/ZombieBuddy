@@ -99,7 +99,7 @@ public class Loader {
     /** Set in {@link #configureApprovalFrontend}; resolved lazily — do not touch LWJGL during agent {@code premain}. */
     private static String g_approvalFrontendConfig = ModApprovalFrontends.ARG_AUTO;
 
-    /** Called from {@link Agent#premain} with {@code approval_frontend=...} (default {@code auto}). */
+    /** Called from {@link Agent#premain} with {@code frontend=...} (default {@code auto}). */
     public static void configureApprovalFrontend(String value) {
         String v = value == null ? "" : value.trim();
         synchronized (g_approvalFrontendLock) {
