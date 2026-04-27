@@ -208,6 +208,8 @@ cp build/libs/YourMod.jar ~/Zomboid/mods/YourMod/[version]/media/java/
 
 ZombieBuddy supports **ZBS signatures** - Ed25519 cryptographic signatures that verify mod authorship. When a signed mod is loaded, ZombieBuddy can verify that the JAR was signed by the author whose public key is published on their Steam profile.
 
+For the trust model and limitations of signing, see [Mod Signing](ModSigning.md).
+
 **Why sign your mod?**
 - Users can verify the mod hasn't been tampered with
 - Auto-approval for trusted authors (users can mark your Steam ID as trusted)

@@ -57,6 +57,7 @@ Previously, Java mods for Project Zomboid required bundling `.class` files and m
 | [Uninstall Guide](doc/Uninstall.md) | Removing ZombieBuddy and optional config data |
 | [Command-Line Parameters](doc/CommandLine.md) | All agent parameters: verbosity, policy, experimental, etc. |
 | [Modding Guide](doc/ModdingGuide.md) | Creating patches, Lua exposure, mod signing, examples |
+| [Mod Signing](doc/ModSigning.md) | What signatures prove, what they do not prove, and how author trust works |
 | [Lua API Reference](doc/LuaAPI.md) | Events, Watches, and Java mod status APIs |
 | [Dev/Debug Functions](doc/DevDebugFunctions.md) | Lua utilities: `zbinspect`, `zbmethods`, `zbgrep`, `zbmap`, etc. |
 
