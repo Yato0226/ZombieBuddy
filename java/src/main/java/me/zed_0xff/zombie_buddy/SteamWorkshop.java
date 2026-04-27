@@ -33,6 +33,12 @@ public final class SteamWorkshop {
     /** Strongly-typed Steam Workshop item id ({@code publishedfileid}). */
     public static record WorkshopItemID(long value) {}
 
+    public static String authorWorkshopUrl(SteamID64 steamId) {
+        return steamId != null
+            ? "https://steamcommunity.com/profiles/" + steamId.value() + "/myworkshopfiles/?appid=" + PZ_APP_ID
+            : "";
+    }
+
     static final String BAN_STATUS_YES = "yes";
     static final String BAN_STATUS_NO = "no";
     static final String BAN_STATUS_UNKNOWN = "unknown";

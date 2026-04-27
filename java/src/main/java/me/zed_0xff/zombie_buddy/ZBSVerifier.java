@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,6 +52,15 @@ public final class ZBSVerifier {
         return verify(jarFile, zbsFile, jarSha256Hex, null);
     }
 
+    public static Verification verify(
+        File jarFile,
+        File zbsFile,
+        String jarSha256Hex,
+        SteamID64 uploaderID
+    ) {
+        return verify(jarFile, zbsFile, jarSha256Hex, uploaderID, Collections.emptyMap());
+    }
+
     /**
      * @param uploaderID Workshop item {@code creator} (SteamID64) when the mod is installed from the Workshop content path;
      *        {@code null} to skip uploader binding (e.g. no workshop id in path).
@@ -59,7 +69,8 @@ public final class ZBSVerifier {
         File jarFile,
         File zbsFile,
         String jarSha256Hex,
-        SteamID64 uploaderID
+        SteamID64 uploaderID,
+        Map<SteamID64, KnownAuthors.AuthorEntry> knownAuthors
     ) {
         if (zbsFile == null || !zbsFile.isFile()) {
             return new MissingSignature(null, "Missing .zbs file next to JAR: " + (zbsFile != null ? zbsFile.getName() : ""));
@@ -78,18 +89,22 @@ public final class ZBSVerifier {
                 return new InvalidSignature(sid, "Declared SteamID64 does not match Workshop item uploader.");
             }
         }
-        List<String> pubHexes;
-        try {
-            pubHexes = fetchJavaModZBSHexesFromSteam(sid);
-        } catch (Exception e) {
-            return new VerificationError(sid, e.getMessage(), Collections.emptyList());
-        }
+        List<String> pubHexes = knownJavaModZBSHexes(sid, knownAuthors);
+        String keySource = "known authors list";
         if (pubHexes.isEmpty()) {
-            return new VerificationError(
-                sid,
-                "Could not find JavaModZBS:<64 hex> on Steam profile — add it to your profile summary.",
-                pubHexes
-            );
+            keySource = "Steam profile";
+            try {
+                pubHexes = fetchJavaModZBSHexesFromSteam(sid);
+            } catch (Exception e) {
+                return new VerificationError(sid, e.getMessage(), Collections.emptyList());
+            }
+            if (pubHexes.isEmpty()) {
+                return new VerificationError(
+                    sid,
+                    "Could not find JavaModZBS:<64 hex> on Steam profile — add it to your profile summary.",
+                    pubHexes
+                );
+            }
         }
         try {
             String canonical = "ZBS:" + sid.value() + ":" + jarSha256Hex.toLowerCase(Locale.ROOT);
@@ -99,10 +114,10 @@ public final class ZBSVerifier {
                 try {
                     pubRaw = hexToBytes(pubHex);
                 } catch (Exception e) {
-                    return new VerificationError(sid, "Invalid JavaModZBS hex on Steam profile.", pubHexes);
+                    return new VerificationError(sid, "Invalid JavaModZBS hex in " + keySource + ".", pubHexes);
                 }
                 if (pubRaw.length != 32) {
-                    return new VerificationError(sid, "JavaModZBS on Steam profile must be 64 hex chars (32-byte Ed25519 public key).", pubHexes);
+                    return new VerificationError(sid, "JavaModZBS in " + keySource + " must be 64 hex chars (32-byte Ed25519 public key).", pubHexes);
                 }
                 Ed25519PublicKeyParameters pub = new Ed25519PublicKeyParameters(pubRaw, 0);
                 Ed25519Signer signer = new Ed25519Signer();
@@ -119,13 +134,28 @@ public final class ZBSVerifier {
         }
     }
 
-    /** Steam Community profile URL for SteamID64 from {@code .zbs}. */
-    public static String steamProfileUrl(String sid) {
-        return "https://steamcommunity.com/profiles/" + sid + "/";
+    private static List<String> knownJavaModZBSHexes(
+        SteamID64 sid,
+        Map<SteamID64, KnownAuthors.AuthorEntry> knownAuthors
+    ) {
+        if (sid == null || knownAuthors == null) {
+            return Collections.emptyList();
+        }
+        KnownAuthors.AuthorEntry author = knownAuthors.get(sid);
+        if (author == null || author.keys == null || author.keys.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        for (String key : author.keys) {
+            if (key != null && !key.trim().isEmpty()) {
+                keys.add(key.trim().toLowerCase(Locale.ROOT));
+            }
+        }
+        return new ArrayList<>(keys);
     }
 
     private static List<String> fetchJavaModZBSHexesFromSteam(SteamID64 sid) throws IOException {
-        String url = steamProfileUrl(sid.toString());
+        String url = SteamWorkshop.authorWorkshopUrl(sid);
         HttpRequest req = HttpRequest.newBuilder()
             .uri(URI.create(url))
             .timeout(Duration.ofSeconds(25))
@@ -224,7 +254,7 @@ public final class ZBSVerifier {
         public final String shortMessage;
         /** Extended human-readable message for tooltips/logging. */
         public final String detailedMessage;
-        /** JavaModZBS keys parsed from profile HTML (lowercase hex). */
+        /** JavaModZBS keys used for verification (lowercase hex). */
         public final List<String> profileKeys;
 
         protected Verification(SteamID64 sid, String shortMessage, String detailedMessage) {

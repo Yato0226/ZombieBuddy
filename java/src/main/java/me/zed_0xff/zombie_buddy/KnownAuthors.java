@@ -15,8 +15,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,60 +54,53 @@ public final class KnownAuthors {
     /**
      * Refreshes from the network when possible, writes cache on success, otherwise reads stale cache.
      */
-    public static Map<SteamID64, String> loadSteamIdToDisplayName() {
+    public static Map<SteamID64, AuthorEntry> loadAuthors() {
         String body = fetchRemoteBody();
         if (body != null) {
-            try {
-                Files.createDirectories(Agent.configDir());
-                Files.writeString(cachePath(), body, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                Logger.warn("Could not write author names cache: " + e.getMessage());
-            }
+            writeCache(body);
         } else {
-            try {
-                Path p = cachePath();
-                if (Files.isRegularFile(p)) {
-                    body = Files.readString(p, StandardCharsets.UTF_8);
-                }
-            } catch (IOException e) {
-                Logger.warn("Could not read author names cache: " + e.getMessage());
-            }
+            body = readCache();
         }
         return body != null ? parseAuthorsJSON(body) : Collections.emptyMap();
+    }
+
+    public static Map<SteamID64, String> loadSteamIdToDisplayName() {
+        Map<SteamID64, String> out = new LinkedHashMap<>();
+        for (Map.Entry<SteamID64, AuthorEntry> entry : loadAuthors().entrySet()) {
+            AuthorEntry author = entry.getValue();
+            if (author != null && author.name != null && !author.name.isEmpty()) {
+                out.put(entry.getKey(), author.name);
+            }
+        }
+        return out;
     }
 
     /**
      * Loads the full author entries (including keys) from network or cache.
      */
     public static List<AuthorEntry> loadAuthorEntries() {
-        String body = fetchRemoteBody();
-        if (body != null) {
-            try {
-                Files.createDirectories(Agent.configDir());
-                Files.writeString(cachePath(), body, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                Logger.warn("Could not write author names cache: " + e.getMessage());
-            }
-        } else {
-            try {
-                Path p = cachePath();
-                if (Files.isRegularFile(p)) {
-                    body = Files.readString(p, StandardCharsets.UTF_8);
-                }
-            } catch (IOException e) {
-                Logger.warn("Could not read author names cache: " + e.getMessage());
-            }
-        }
-        if (body == null || body.isEmpty()) {
-            return Collections.emptyList();
-        }
+        return new ArrayList<>(loadAuthors().values());
+    }
+
+    private static void writeCache(String body) {
         try {
-            List<AuthorEntry> entries = ZBGson.PRETTY.fromJson(body, AUTHOR_LIST_TYPE);
-            return entries != null ? entries : Collections.emptyList();
-        } catch (Exception e) {
-            Logger.warn("Failed to parse authors.json: " + e.getMessage());
-            return Collections.emptyList();
+            Files.createDirectories(Agent.configDir());
+            Files.writeString(cachePath(), body, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Logger.warn("Could not write author names cache: " + e.getMessage());
         }
+    }
+
+    private static String readCache() {
+        try {
+            Path p = cachePath();
+            if (Files.isRegularFile(p)) {
+                return Files.readString(p, StandardCharsets.UTF_8);
+            }
+        } catch (IOException e) {
+            Logger.warn("Could not read authors cache: " + e.getMessage());
+        }
+        return null;
     }
 
     private static String fetchRemoteBody() {
@@ -124,18 +118,18 @@ public final class KnownAuthors {
             if (resp.statusCode() == 200) {
                 return resp.body();
             }
-            Logger.warn("Author names list HTTP " + resp.statusCode());
+            Logger.warn("Authors list HTTP " + resp.statusCode());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            Logger.warn("Author names list fetch interrupted");
+            Logger.warn("Authors list fetch interrupted");
         } catch (IOException e) {
-            Logger.warn("Author names list fetch failed: " + e.getMessage());
+            Logger.warn("Authors list fetch failed: " + e.getMessage());
         }
         return null;
     }
 
-    static Map<SteamID64, String> parseAuthorsJSON(String body) {
-        Map<SteamID64, String> out = new HashMap<>();
+    static Map<SteamID64, AuthorEntry> parseAuthorsJSON(String body) {
+        Map<SteamID64, AuthorEntry> out = new LinkedHashMap<>();
         if (body == null || body.isEmpty()) {
             return out;
         }
@@ -143,8 +137,8 @@ public final class KnownAuthors {
             List<AuthorEntry> entries = ZBGson.PRETTY.fromJson(body, AUTHOR_LIST_TYPE);
             if (entries != null) {
                 for (AuthorEntry e : entries) {
-                    if (e.id != null && e.name != null && !e.name.isEmpty()) {
-                        out.put(e.id, e.name);
+                    if (e != null && e.id != null) {
+                        out.put(e.id, e);
                     }
                 }
             }

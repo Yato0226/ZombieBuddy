@@ -254,6 +254,37 @@ public class Loader {
         });
     }
 
+    private static void mergeKnownAuthors(
+        Map<SteamID64, AuthorEntry> authors,
+        Map<SteamID64, KnownAuthors.AuthorEntry> knownAuthors
+    ) {
+        if (authors == null || knownAuthors == null || knownAuthors.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<SteamID64, KnownAuthors.AuthorEntry> entry : knownAuthors.entrySet()) {
+            KnownAuthors.AuthorEntry known = entry.getValue();
+            SteamID64 sid = entry.getKey();
+            if (sid == null || known == null) {
+                continue;
+            }
+            authors.compute(sid, (k, existing) -> {
+                boolean trust = existing != null && existing.trust;
+                String name = existing != null ? existing.name : null;
+                if ((name == null || name.isEmpty()) && known.name != null && !known.name.isEmpty()) {
+                    name = known.name;
+                }
+                Set<String> keys = new LinkedHashSet<>();
+                if (known.keys != null) {
+                    keys.addAll(known.keys);
+                }
+                if (existing != null) {
+                    keys.addAll(existing.keys);
+                }
+                return new AuthorEntry(k, trust, keys, name);
+            });
+        }
+    }
+
     private static boolean isJarAllowedByPolicy(String modId, JavaModInfo jModInfo, JarDecisionTable disk, String hash) {
         File jarFile = jModInfo != null ? jModInfo.getJarFileAsFile() : null;
         if (hash == null) return false;
@@ -332,7 +363,10 @@ public class Loader {
         return ae != null && ae.trust;
     }
 
-    private static String authorDisplayName(SteamID64 sid, Map<SteamID64, String> knownAuthorNames) {
+    private static String authorDisplayName(
+        SteamID64 sid,
+        Map<SteamID64, KnownAuthors.AuthorEntry> knownAuthors
+    ) {
         if (sid == null) {
             return "";
         }
@@ -340,8 +374,8 @@ public class Loader {
         if (stored != null && stored.name != null && !stored.name.isEmpty()) {
             return stored.name;
         }
-        String known = knownAuthorNames != null ? knownAuthorNames.get(sid) : null;
-        return known != null && !known.isEmpty() ? known : sid.toString();
+        KnownAuthors.AuthorEntry known = knownAuthors != null ? knownAuthors.get(sid) : null;
+        return known != null && known.name != null && !known.name.isEmpty() ? known.name : sid.toString();
     }
 
     public static void loadJavaMods(ArrayList<String> mods) {
@@ -401,6 +435,7 @@ public class Loader {
         int storedEntriesCountBefore = g_storedEntries.size();
         JarDecisionTable approvals = buildJarDecisionTable(g_storedEntries);
         JarDecisionTable approvalsBefore = approvals.copy();
+        Map<SteamID64, KnownAuthors.AuthorEntry> knownAuthorsBySteamId = KnownAuthors.loadAuthors();
         Map<SteamID64, AuthorEntry> authorsBefore = new HashMap<>();
         g_authors.clear();
         for (AuthorEntry ae : fileData.authors) {
@@ -409,6 +444,7 @@ public class Loader {
                 g_authors.put(ae.id, new AuthorEntry(ae.id, ae.trust, new LinkedHashSet<>(ae.keys), ae.name));
             }
         }
+        mergeKnownAuthors(g_authors, knownAuthorsBySteamId);
 
         // Structural-only skip flags (must match the policy loop below) — used to batch all PROMPT dialogs.
         ArrayList<Boolean> structuralOnlySkip = new ArrayList<>();
@@ -433,7 +469,6 @@ public class Loader {
         }
         Map<WorkshopItemID, SteamWorkshop.ItemDetails> workshopDetailsById =
             SteamWorkshop.fetchItemDetails(workshopIdsToCheck);
-        Map<SteamID64, String> authorNamesBySteamId = KnownAuthors.loadSteamIdToDisplayName();
 
         // Pre-compute per-mod context to avoid duplicate work in prompt and load loops
         record ModCtx(String modId, File jarFile, String hash, WorkshopItemID workshopItemId,
@@ -474,7 +509,7 @@ public class Loader {
                 String steamBanReason = ctx.banInfo != null ? ctx.banInfo.reason : "";
                 ZBSCheck.Result zbsResult = zbsSignatureChecksEnabled()
                     ? ZBSCheck.check(ctx.jarFile, ctx.hash, ctx.workshopItemId, 
-                        ctx.workshopItemId != null, g_allowUnsignedMods, workshopDetailsById)
+                        ctx.workshopItemId != null, g_allowUnsignedMods, workshopDetailsById, knownAuthorsBySteamId)
                     : ZBSCheck.Result.DISABLED;
                 if (zbsResult.verification() != null) {
                     mergeAuthorKeysFromVerification(g_authors, zbsResult.verification());
@@ -483,7 +518,7 @@ public class Loader {
                 SteamID64 zbsSID = zbsResult.sid();
                 String zbsNotice = zbsResult.notice();
                 if ("yes".equals(zbsValid)) {
-                    zbsNotice = authorDisplayName(zbsSID, authorNamesBySteamId);
+                    zbsNotice = authorDisplayName(zbsSID, knownAuthorsBySteamId);
                 }
                 if (!ctx.steamBanned && "yes".equals(zbsValid) && isAuthorTrusted(zbsSID)) {
                     // Auto-approve signed mods from trusted authors
@@ -546,7 +581,7 @@ public class Loader {
             // ZBS: skipped entirely for policy=allow-all; invalid signatures always block when checks apply.
             if (!shouldSkip && zbsSignatureChecksEnabled() && ctx.jarFile != null && ctx.hash != null) {
                 ZBSCheck.Result zbsResult = ZBSCheck.check(ctx.jarFile, ctx.hash, 
-                    ctx.workshopItemId, ctx.workshopItemId != null, g_allowUnsignedMods, workshopDetailsById);
+                    ctx.workshopItemId, ctx.workshopItemId != null, g_allowUnsignedMods, workshopDetailsById, knownAuthorsBySteamId);
                 if (zbsResult.verification() != null) {
                     mergeAuthorKeysFromVerification(g_authors, zbsResult.verification());
                 }

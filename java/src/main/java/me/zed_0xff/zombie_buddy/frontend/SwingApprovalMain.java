@@ -5,7 +5,7 @@ import static me.zed_0xff.zombie_buddy.SteamWorkshop.SteamID64;
 import me.zed_0xff.zombie_buddy.JarBatchApprovalProtocol;
 import me.zed_0xff.zombie_buddy.KnownAuthors;
 import me.zed_0xff.zombie_buddy.Loader;
-import me.zed_0xff.zombie_buddy.ZBSVerifier;
+import me.zed_0xff.zombie_buddy.SteamWorkshop;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -246,7 +246,7 @@ public final class SwingApprovalMain {
             applyRowBackground(authorCell, rowBg);
             String zbsSteamId = e.zbsSteamId != null ? e.zbsSteamId.toString() : "";
             if (zbsYes && !zbsSteamId.isEmpty()) {
-                String profileUrl = ZBSVerifier.steamProfileUrl(zbsSteamId);
+                String profileUrl = SteamWorkshop.authorWorkshopUrl(e.zbsSteamId);
                 String resolved = steamIdToDisplayName != null
                     ? steamIdToDisplayName.get(e.zbsSteamId)
                     : null;

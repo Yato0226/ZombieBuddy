@@ -368,7 +368,7 @@ final class ImguiApprovalDialog {
     private void drawAuthor(JarBatchApprovalProtocol.Entry e) {
         if ("yes".equals(e.zbsValid) && e.zbsSteamId != null) {
             centerNextItemVertically(ImGui.getTextLineHeight());
-            centeredLinkText(authorText(e), authorWorkshopUrl(e.zbsSteamId.value()));
+            centeredLinkText(authorText(e), SteamWorkshop.authorWorkshopUrl(e.zbsSteamId));
             return;
         }
         if ("no".equals(e.zbsValid)) {
@@ -506,10 +506,6 @@ final class ImguiApprovalDialog {
             sb.append("jar: ").append(e.jarAbsolutePath);
         }
         return sb.toString();
-    }
-
-    private static String authorWorkshopUrl(long steamId) {
-        return "https://steamcommunity.com/profiles/" + steamId + "/myworkshopfiles/?appid=" + SteamWorkshop.PZ_APP_ID;
     }
 
     private static String approvalsFilePath() {

@@ -42,6 +42,18 @@ public final class ZBSCheck {
             boolean allowUnsignedMods,
             Map<WorkshopItemID, SteamWorkshop.ItemDetails> workshopDetailsById
     ) {
+        return check(jarFile, jarHash, workshopItemId, steamModeEnabled, allowUnsignedMods, workshopDetailsById, null);
+    }
+
+    public static Result check(
+            File jarFile,
+            String jarHash,
+            WorkshopItemID workshopItemId,
+            boolean steamModeEnabled,
+            boolean allowUnsignedMods,
+            Map<WorkshopItemID, SteamWorkshop.ItemDetails> workshopDetailsById,
+            Map<SteamID64, KnownAuthors.AuthorEntry> knownAuthors
+    ) {
         File zbsFile = new File(jarFile.getAbsolutePath() + ".zbs");
         
         if (!zbsFile.isFile()) {
@@ -51,7 +63,7 @@ public final class ZBSCheck {
         SteamID64 uploaderID = steamModeEnabled
             ? SteamWorkshop.getUploaderForVerification(workshopItemId, workshopDetailsById)
             : null;
-        ZBSVerifier.Verification zbs = ZBSVerifier.verify(jarFile, zbsFile, jarHash, uploaderID);
+        ZBSVerifier.Verification zbs = ZBSVerifier.verify(jarFile, zbsFile, jarHash, uploaderID, knownAuthors);
         
         boolean valid = zbs instanceof ZBSVerifier.ValidSignature;
         String notice = noticeForUi(zbs);
