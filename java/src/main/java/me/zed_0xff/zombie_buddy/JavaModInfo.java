@@ -4,6 +4,7 @@ import static me.zed_0xff.zombie_buddy.SteamWorkshop.WorkshopItemID;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,7 +22,7 @@ public record JavaModInfo(
     String displayName   // From {@code name=} in mod.info; may be null
 ) {
     /** Project Zomboid Steam app id used in Workshop paths: .../content/108600/<publishedfileid>/... */
-    private static final Pattern WORKSHOP_ITEM_ID_IN_PATH = Pattern.compile("/content/" + SteamWorkshop.PZ_APP_ID + "/([0-9]+)/");
+    private static final Pattern WORKSHOP_ITEM_ID_IN_PATH = Pattern.compile("/content/" + SteamWorkshop.PZ_APP_ID + "/([0-9]+)/", Pattern.CASE_INSENSITIVE);
     private static final Pattern WORKSHOP_ITEM_ID_IN_TXT  = Pattern.compile("^id=([0-9]+)$");
 
     public JavaModInfo(File modDir, File modInfoFile) {
@@ -61,7 +62,7 @@ public record JavaModInfo(
                 return null;
             }
         }
-        if (p.contains("/Workshop/")) {
+        if (p.toLowerCase(Locale.ROOT).contains("/workshop/")) {
             File dir = modDir;
             for (int ascent = 0; ascent < 4 && dir != null; ascent++) {
                 dir = dir.getParentFile();
