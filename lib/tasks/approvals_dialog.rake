@@ -149,7 +149,7 @@ def zb_sample_approval_entries
     ]
 end
 
-def zb_run_approval_dialog(main_class, cp: [], props: {}, headless: )
+def zb_run_approval_dialog(main_class, cp: [], props: {}, headless:, first_thread: false)
   require "tmpdir"
 
   jar = "java/build/libs/ZombieBuddy.jar"
@@ -165,7 +165,9 @@ def zb_run_approval_dialog(main_class, cp: [], props: {}, headless: )
     resp = File.join(dir, "response.json")
     File.write(req, zb_sample_batch_request_v6_json(sample))
 
-    cmd = [ java, *props.map{ |*a| "-D" + a.join('=') }, "-XstartOnFirstThread", "-cp", cp.join(":"), main_class, req, resp ]
+    cmd = [ java, *props.map{ |*a| "-D" + a.join('=') } ]
+    cmd << "-XstartOnFirstThread" if first_thread
+    cmd += ["-cp", cp.join(":"), main_class, req, resp]
     puts cmd.join(" ")
     system(*cmd)
     st = $?.exitstatus
@@ -190,13 +192,12 @@ namespace :approval_dialog do
 
   desc "Run Imgui-based mod approval dialog"
   task :imgui do
-    game_root = File.expand_path("~/projects/zomboid/versions/unstable/java")
-    cp = [
-      File.join(game_root, "projectzomboid.jar")
-    ]
+    pz_version = ENV['PZ_VERSION'] || "unstable"
+    game_root = File.join(PROJECT_ROOT, "versions", pz_version, "java")
+    cp = build_classpath(game_root)
     props = {
       "java.library.path" => File.join(game_root, "mac-aarch64")
     }
-    zb_run_approval_dialog(ZB_IMGUI_APPROVAL_MAIN, headless: true, props:, cp:)
+    zb_run_approval_dialog(ZB_IMGUI_APPROVAL_MAIN, headless: true, props:, cp:, first_thread: true)
   end
 end

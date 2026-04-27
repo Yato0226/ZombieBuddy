@@ -3,6 +3,24 @@ PROJECT_ROOT = File.expand_path("~/projects/zomboid")
 # only for install/launch tasks
 GAME_ROOT    = File.expand_path("~/Library/Application Support/Steam/steamapps/common/ProjectZomboid/Project Zomboid.app/Contents/")
 
+JARS = [
+  "lwjgl.jar",
+  "lwjgl-glfw.jar",
+  "lwjgl-opengl.jar",
+  "imgui-binding-1.86.11-8-g3e33dde.jar",
+]
+
+def build_classpath(cp_root)
+  cp = []
+  pathname = File.join(cp_root, "projectzomboid.jar")
+  cp << (File.file?(pathname) ? pathname : cp_root)
+  JARS.each do |jar|
+    pathname = File.join(cp_root, jar)
+    cp << File.join(pathname) if File.file?(pathname)
+  end
+  cp
+end
+
 Dir["lib/tasks/*.rake"].each { |r| load r }
 Dir["lib/tasks/*.rake.local"].each { |r| load r }
 

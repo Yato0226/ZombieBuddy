@@ -21,6 +21,8 @@ public final class ModApprovalFrontends {
     public static final String ARG_IMGUI   = "imgui";
 
     private static final String TINYFD_CLASS         = "org.lwjgl.util.tinyfd.TinyFileDialogs";
+    private static final String IMGUI_CLASS          = "imgui.ImGui";
+    private static final String IMGUI_GL3_CLASS      = "imgui.gl3.ImGuiImplGl3";
     private static final String LWJGLX_DISPLAY_CLASS = "org.lwjglx.opengl.Display";
     private static final String GAME_SERVER_CLASS    = "zombie.network.GameServer";
 
@@ -45,6 +47,10 @@ public final class ModApprovalFrontends {
             return new ConsoleModApprovalFrontend();
         }
         if (ARG_IMGUI.equals(v)) {
+            if (!imguiAvailable()) {
+                Logger.warn("frontend=imgui but ImGui classes are not available; using auto");
+                return resolveAuto();
+            }
             if (!lwjglxDisplayWindowReady()) {
                 Logger.warn("frontend=imgui but game window is not ready; using auto");
                 return resolveAuto();
@@ -61,19 +67,19 @@ public final class ModApprovalFrontends {
      * {@code GameServer.server} (dedicated / {@code -Dserver=true}) to pick a UI.
      *
      * <ul>
-     *   <li>Display exists → {@link SwingModApprovalFrontend} (typical client / SP)</li>
+     *   <li>Display exists → {@link ImguiModApprovalFrontend} (typical client / SP)</li>
      *   <li>No display but dedicated server process → {@link ConsoleModApprovalFrontend}</li>
-     *   <li>Otherwise → {@link TinyfdModApprovalFrontend} (dialogs without Swing batch)</li>
+     *   <li>Otherwise → {@link SwingModApprovalFrontend} (dialogs without Swing batch)</li>
      * </ul>
      */
     public static ModApprovalFrontend resolveAuto() {
-        if (lwjglxDisplayIsCreated()) {
+        if (imguiAvailable() && lwjglxDisplayIsCreated()) {
             return new ImguiModApprovalFrontend();
         }
         if (gameServerDedicatedFlag()) {
             return new ConsoleModApprovalFrontend();
         }
-        return new TinyfdModApprovalFrontend();
+        return new SwingModApprovalFrontend();
     }
 
     /**
@@ -92,6 +98,11 @@ public final class ModApprovalFrontends {
         } catch (Throwable t) {
             return false;
         }
+    }
+
+    private static boolean imguiAvailable() {
+        return Accessor.findClass(IMGUI_CLASS) != null
+            && Accessor.findClass(IMGUI_GL3_CLASS) != null;
     }
 
     private static boolean lwjglxDisplayWindowReady() {

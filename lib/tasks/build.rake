@@ -30,16 +30,10 @@ namespace :build do
       "JAVA_HOME" => "/Library/Java/JavaVirtualMachines/openjdk-17.jdk/Contents/Home"
     }
     cp_root = File.join(PROJECT_ROOT, "versions/42.12/java")
-    cp = [
-      cp_root,
-      File.join(cp_root, "lwjgl.jar"),
-      File.join(cp_root, "lwjgl-glfw.jar"),
-      File.join(cp_root, "lwjgl-opengl.jar"),
-      File.join(cp_root, "imgui-binding-1.86.11-8-g3e33dde.jar"),
-    ].join(",")
+    cp = build_classpath(cp_root)
 
     Dir.chdir("java") do
-      sh env, "gradle build --warning-mode all -PgameClasspath=#{cp}"
+      sh env, "gradle build --warning-mode all -PgameClasspath=#{cp.join(',')}"
     end
   end
 end
