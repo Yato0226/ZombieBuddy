@@ -217,10 +217,9 @@ public final class SwingApprovalMain {
             c.gridx = COL_MOD;
             c.weightx = W_MOD_ROW;
             c.fill = GridBagConstraints.BOTH;
-            String workshopItemId = e.workshopItemId != null ? Long.toString(e.workshopItemId.value()) : null;
             JLabel nameLab;
-            if (workshopItemId != null) {
-                String workshopUrl = workshopItemUrl(workshopItemId);
+            if (e.workshopItemId != null) {
+                String workshopUrl = SteamWorkshop.workshopItemUrl(e.workshopItemId);
                 nameLab = new JLabel("<html><a href=\"" + workshopUrl + "\">" + escapeHtml(modTitle(e)) + "</a></html>");
                 nameLab.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
                 nameLab.addMouseListener(new MouseAdapter() {
@@ -513,10 +512,6 @@ public final class SwingApprovalMain {
         frame.pack();
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
-    }
-
-    private static String workshopItemUrl(String workshopItemId) {
-        return "https://steamcommunity.com/sharedfiles/filedetails/?id=" + workshopItemId;
     }
 
     private static void applyRowBackground(JComponent component, Color rowBg) {

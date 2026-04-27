@@ -361,7 +361,7 @@ final class ImguiApprovalDialog {
             showTooltipIfHovered(tooltip);
             return;
         }
-        String url = workshopItemUrl(e.workshopItemId.value());
+        String url = SteamWorkshop.workshopItemUrl(e.workshopItemId);
         linkTextWrapped(name, url, "url: " + url + "\n" + tooltip);
     }
 
@@ -488,10 +488,6 @@ final class ImguiApprovalDialog {
         if (ImGui.isItemHovered()) {
             ImGui.setTooltip(text);
         }
-    }
-
-    private static String workshopItemUrl(long workshopItemId) {
-        return "https://steamcommunity.com/sharedfiles/filedetails/?id=" + workshopItemId;
     }
 
     private static String modTooltip(JarBatchApprovalProtocol.Entry e) {

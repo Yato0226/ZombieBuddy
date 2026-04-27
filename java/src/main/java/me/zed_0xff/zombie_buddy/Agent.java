@@ -22,7 +22,6 @@ public class Agent {
         Loader.g_instrumentation = inst;
 
         if (agentArgs != null && !agentArgs.isEmpty()) {
-            boolean msgShown = false;
             String[] args = agentArgs.split(",");
             for (String arg : args) {
                 String[] kv = arg.split("=", 2);
@@ -30,12 +29,6 @@ public class Agent {
                 String value = (kv.length > 1) ? kv[1] : "";
 
                 arguments.put(key, value);
-
-                if (!msgShown) {
-                    msgShown = true;
-                    Logger.warn("agentArgs \"" + agentArgs + "\" are deprecated, use standard Java system properties \""
-                            + PROP_PREFIX + key + "=" + (value.isEmpty() ? "true" : value) + "\" instead");
-                }
             }
         }
 

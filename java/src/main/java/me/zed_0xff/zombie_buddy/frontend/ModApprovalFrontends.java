@@ -101,8 +101,13 @@ public final class ModApprovalFrontends {
     }
 
     private static boolean imguiAvailable() {
-        return Accessor.findClass(IMGUI_CLASS) != null
-            && Accessor.findClass(IMGUI_GL3_CLASS) != null;
+        try {
+            return Accessor.findClass(IMGUI_CLASS) != null
+                && Accessor.findClass(IMGUI_GL3_CLASS) != null;
+        } catch (LinkageError e) {
+            Logger.warn("ImGui classes are present but could not be loaded: " + e);
+            return false;
+        }
     }
 
     private static boolean lwjglxDisplayWindowReady() {

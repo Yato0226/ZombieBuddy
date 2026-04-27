@@ -39,6 +39,12 @@ public final class SteamWorkshop {
             : "";
     }
 
+    public static String workshopItemUrl(WorkshopItemID workshopItemId) {
+        return workshopItemId != null
+            ? "https://steamcommunity.com/sharedfiles/filedetails/?id=" + workshopItemId.value()
+            : "";
+    }
+
     static final String BAN_STATUS_YES = "yes";
     static final String BAN_STATUS_NO = "no";
     static final String BAN_STATUS_UNKNOWN = "unknown";
