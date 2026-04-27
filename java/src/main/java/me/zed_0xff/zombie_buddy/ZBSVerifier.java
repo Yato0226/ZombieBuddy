@@ -155,7 +155,7 @@ public final class ZBSVerifier {
     }
 
     private static List<String> fetchJavaModZBSHexesFromSteam(SteamID64 sid) throws IOException {
-        String url = SteamWorkshop.authorWorkshopUrl(sid);
+        String url = SteamWorkshop.authorProfileUrl(sid);
         HttpRequest req = HttpRequest.newBuilder()
             .uri(URI.create(url))
             .timeout(Duration.ofSeconds(25))
