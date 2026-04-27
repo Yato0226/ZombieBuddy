@@ -14,8 +14,8 @@ public enum JarApprovalOutcome {
         return switch (this) {
             case ALLOW_PERSIST -> JarBatchApprovalProtocol.TOK_ALLOW_PERSIST;
             case ALLOW_SESSION -> JarBatchApprovalProtocol.TOK_ALLOW_SESSION;
-            case DENY_PERSIST -> JarBatchApprovalProtocol.TOK_DENY_PERSIST;
-            case DENY_SESSION -> JarBatchApprovalProtocol.TOK_DENY_SESSION;
+            case DENY_PERSIST  -> JarBatchApprovalProtocol.TOK_DENY_PERSIST;
+            case DENY_SESSION  -> JarBatchApprovalProtocol.TOK_DENY_SESSION;
         };
     }
 }

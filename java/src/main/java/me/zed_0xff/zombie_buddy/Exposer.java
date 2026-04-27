@@ -227,13 +227,13 @@ public class Exposer {
                 .acceptPackages(packageName)
                 .enableAnnotationInfo()
                 .scan()) {
-            exposeAnnotatedClasses(scanResult, null);
+            exposeAnnotatedClasses(scanResult, packageName);
         }
     }
 
     public static void exposeAnnotatedClasses(io.github.classgraph.ScanResult scanResult, String packageName) {
         for (var classInfo : scanResult.getClassesWithAnnotation(LuaClass.class.getName())) {
-            if (packageName != null && !classInfo.getPackageName().equals(packageName)) {
+            if (packageName == null || packageName.isEmpty() || !classInfo.getPackageName().equals(packageName)) {
                 Logger.error("Class " + classInfo.getName() + " is annotated with @LuaClass but is not in the exact package "
                         + packageName + ", skipping exposure");
                 continue;
@@ -241,8 +241,11 @@ public class Exposer {
             try {
                 Class<?> cls = classInfo.loadClass();
                 LuaClass ann = cls.getAnnotation(LuaClass.class);
-                String name = (ann != null) ? ann.name() : "";
-                exposeClass(cls, name);
+                if (ann == null) {
+                    Logger.error("Class " + classInfo.getName() + " is annotated with @LuaClass but annotation is null, skipping");
+                    continue;
+                }
+                exposeClass(cls, ann.name());
             } catch (Exception e) {
                 Logger.error("Error exposing Lua class " + classInfo.getName() + ": " + e.getMessage());
             }

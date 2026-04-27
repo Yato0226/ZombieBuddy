@@ -83,7 +83,7 @@ Controls whether mods without ZBS signatures are allowed.
 
 ---
 
-### approval_frontend
+### frontend
 
 Selects the UI for Java mod approval dialogs.
 
@@ -97,7 +97,7 @@ Selects the UI for Java mod approval dialogs.
 **Example:**
 
 ```
--javaagent:ZombieBuddy.jar=approval_frontend=console --
+-javaagent:ZombieBuddy.jar=frontend=console --
 ```
 
 ---

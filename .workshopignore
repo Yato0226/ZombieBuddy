@@ -6,6 +6,7 @@
 *.xcf
 test*.jar
 
+.cursor
 names.yml
 Rakefile
 

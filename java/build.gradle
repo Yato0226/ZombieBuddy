@@ -26,8 +26,8 @@ repositories {
 }
 
 dependencies {
-    implementation 'net.bytebuddy:byte-buddy:1.18.4'
-    implementation 'net.bytebuddy:byte-buddy-agent:1.18.4'
+    implementation 'net.bytebuddy:byte-buddy:1.18.8'
+    implementation 'net.bytebuddy:byte-buddy-agent:1.18.8'
     implementation 'io.github.classgraph:classgraph:4.8.184'
     implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
     implementation 'com.google.code.gson:gson:2.12.1'

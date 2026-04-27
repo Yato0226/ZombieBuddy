@@ -14,12 +14,14 @@ import me.zed_0xff.zombie_buddy.frontend.ModApprovalFrontends;
 public class Agent {
     public static final Map<String, String> arguments = new HashMap<>();
 
+    public static final String PROP_PREFIX = "zb.";
+
     public static void premain(String agentArgs, Instrumentation inst) {
         Logger.info("activating " + ZombieBuddy.getFullVersionString());
         Loader.g_instrumentation = inst;
 
         if (agentArgs != null && !agentArgs.isEmpty()) {
-            Logger.info("agentArgs: " + agentArgs);
+            boolean msgShown = false;
             String[] args = agentArgs.split(",");
             for (String arg : args) {
                 String[] kv = arg.split("=", 2);
@@ -27,8 +29,24 @@ public class Agent {
                 String value = (kv.length > 1) ? kv[1] : "";
 
                 arguments.put(key, value);
+
+                if (!msgShown) {
+                    msgShown = true;
+                    Logger.warn("agentArgs \"" + agentArgs + "\" are deprecated, use standard Java system properties \""
+                            + PROP_PREFIX + key + "=" + (value.isEmpty() ? "true" : value) + "\" instead");
+                }
             }
         }
+
+        // Snapshot property names to avoid ConcurrentModificationException; null values skipped
+        System.getProperties().stringPropertyNames().stream()
+            .filter(key -> key.startsWith(PROP_PREFIX))
+            .forEach(key -> {
+                String value = System.getProperty(key);
+                if (value != null) {
+                    arguments.put(key.substring(PROP_PREFIX.length()), value);
+                }
+            });
 
         if( arguments.containsKey("verbosity")) {
             try {
@@ -50,7 +68,7 @@ public class Agent {
         Logger.info("allow_unsigned_mods=" + Loader.g_allowUnsignedMods);
 
         // Java mod UI: auto (default), swing (Swing batch + TinyFD per-mod), tinyfd, console (stdin/headless).
-        Loader.configureApprovalFrontend(arguments.getOrDefault("approval_frontend", ModApprovalFrontends.ARG_AUTO));
+        Loader.configureApprovalFrontend(arguments.getOrDefault("frontend", ModApprovalFrontends.ARG_AUTO));
 
         if (arguments.containsKey("batch_approval_timeout")) {
             try {
@@ -72,6 +90,9 @@ public class Agent {
                 Logger.error("invalid ZB_VERBOSITY value: " + envVerbosity);
             }
         }
+
+        // fails to expose via annotation at this point (in zbspec), so expose manually
+        Exposer.exposeClass(ZombieBuddy.class);
 
         Loader.ApplyPatchesFromPackage(ZombieBuddy.class.getPackage().getName() + ".patches", null, true);
 
@@ -114,9 +135,6 @@ public class Agent {
         if (arguments.containsKey("exit_after_game_init")) {
             Callbacks.onGameInitComplete.register(Agent::exitOnGameInitComplete);
         }
-
-        // Expose classes with @Exposer.LuaClass annotation from main package
-        Exposer.exposeAnnotatedClasses(ZombieBuddy.class.getPackage().getName());
 
         if (arguments.containsKey("expose_classes")) {
             String[] classes = arguments.get("expose_classes").split(",");

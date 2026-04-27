@@ -8,7 +8,7 @@ import se.krka.kahlua.vm.LuaClosure;
 import se.krka.kahlua.vm.KahluaTable;
 import zombie.Lua.LuaManager;
 
-@Exposer.LuaClass
+//@Exposer.LuaClass doesn't always work here because ZB is loaded in premain
 public class ZombieBuddy {
     private static String version = "unknown";
     
