@@ -103,6 +103,9 @@ Examples (block form, these go into Steam launch options):
 
     [*][b]Supported game versions?[/b]
     B41, B42.12, B42.13, B42.14, B42.15, B42.16
+
+    [*][b]WHY ALL LINKS ARE REMOVED FROM THIS PAGE AND COMMENTS DISABLED???!!![/b]
+    Steam does that while it checks a newly uploaded mod version for viruses, I suppose. Everything should return to normal in about 5-10 minutes.
 [/list]
 
 [h1]Links[/h1]
