@@ -69,7 +69,7 @@ end
 
 def zb_sample_approval_entries
   authors = JSON.load_file("authors.json")
-  abort "authors.yml: expected a mapping with at least one entry" unless authors.is_a?(Array) && authors.any?
+  abort "authors.json: expected a mapping with at least one entry" unless authors.is_a?(Array) && authors.any?
 
   first_author = authors.first
   hex64 = "a" * 64
