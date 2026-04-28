@@ -11,6 +11,7 @@ import me.zed_0xff.zombie_buddy.ModApprovalsStore;
 import me.zed_0xff.zombie_buddy.SteamWorkshop;
 
 import imgui.ImColor;
+import imgui.ImDrawList;
 import imgui.ImGui;
 import imgui.flag.ImGuiCol;
 import imgui.flag.ImGuiCond;
@@ -32,6 +33,8 @@ final class ImguiApprovalDialog {
     private static final int STEAM_BAN_UNKNOWN = ImColor.rgb(184, 134, 11);
     private static final int STEAM_BAN_NO = ImColor.rgb(0, 170, 70);
     private static final int LINK = ImColor.rgb(80, 150, 255);
+    private static final int ALLOW_CHECK_MARK = ImColor.rgb(0, 255, 0);
+    private static final int DENY_CROSS_MARK  = ImColor.rgb(255, 0, 0);
     private static final float DIALOG_W = 1024.0f;
     private static final float DIALOG_H = 768.0f;
     private static final float TABLE_ROW_MIN_HEIGHT = 32.0f;
@@ -50,7 +53,7 @@ final class ImguiApprovalDialog {
     private final boolean[] initialAllow;
     private final boolean[] forceDeny;
     private final String[] authorGroupKey;
-    private final ImBoolean persist = new ImBoolean(true);
+    private final ImBoolean persist = new ImBoolean(false);
     private final ImBoolean open = new ImBoolean(true);
     private final AtomicReference<List<JarBatchApprovalProtocol.OutLine>> result;
     private final boolean showTrustColumn;
@@ -289,9 +292,7 @@ final class ImguiApprovalDialog {
 
     private float allowColumnContentWidth() {
         float w = ImGui.calcTextSize(COL_ALLOW).x;
-        w = Math.max(w, ImGui.calcTextSize("Yes (trusted)").x);
-        w = Math.max(w, ImGui.calcTextSize("No").x);
-        w = Math.max(w, radioButtonWidth("Yes") + ImGui.getStyle().getItemSpacingX() + radioButtonWidth("No"));
+        w = Math.max(w, ImGui.getFrameHeight() * 2.0f + ImGui.getStyle().getItemSpacingX());
         return w;
     }
 
@@ -400,27 +401,33 @@ final class ImguiApprovalDialog {
     }
 
     private void drawAllow(int index) {
+        boolean interactive = true;
         if (forceDeny[index]) {
             allow[index].set(false);
-            cellCenteredText("No");
-            return;
-        }
-        if (trustAuthor[index].get()) {
+            interactive = false;
+        } else if (trustAuthor[index].get()) {
             allow[index].set(true);
-            cellCenteredText("Yes (trusted)");
-            return;
+            interactive = false;
         }
-        float yesW = radioButtonWidth("Yes");
-        float noW = radioButtonWidth("No");
-        float rowW = yesW + ImGui.getStyle().getItemSpacingX() + noW;
+        drawAllowCheckboxes(index, interactive);
+    }
+
+    private void drawAllowCheckboxes(int index, boolean interactive) {
+        float checkboxW = ImGui.getFrameHeight();
+        float rowW = checkboxW * 2.0f + ImGui.getStyle().getItemSpacingX();
         centerNextItemVertically(ImGui.getFrameHeight());
         centerNextItem(rowW);
-        if (clickableRadioButton("Yes##allow-yes-" + index, allow[index].get())) {
-            allow[index].set(true);
-        }
-        ImGui.sameLine();
-        if (clickableRadioButton("No##allow-no-" + index, !allow[index].get())) {
-            allow[index].set(false);
+        ImGui.beginDisabled(!interactive);
+        try {
+            if (clickableCheckboxValue("##allow-yes-" + index, allow[index].get(), "Yes", ALLOW_CHECK_MARK)) {
+                allow[index].set(true);
+            }
+            ImGui.sameLine();
+            if (clickableCrossCheckbox("##allow-no-" + index, !allow[index].get(), "No")) {
+                allow[index].set(false);
+            }
+        } finally {
+            ImGui.endDisabled();
         }
     }
 
@@ -436,10 +443,72 @@ final class ImguiApprovalDialog {
         return clicked;
     }
 
-    private static boolean clickableRadioButton(String label, boolean active) {
-        boolean clicked = ImGui.radioButton(label, active);
-        handCursorIfHovered();
+    private static boolean clickableCheckboxValue(String label, boolean checked, String tooltip) {
+        return clickableCheckboxValue(label, checked, tooltip, 0);
+    }
+
+    private static boolean clickableCheckboxValue(String label, boolean checked, String tooltip, int checkMarkColor) {
+        if (checkMarkColor != 0) {
+            ImGui.pushStyleColor(ImGuiCol.CheckMark, checkMarkColor);
+        }
+        try {
+            boolean clicked = ImGui.checkbox(label, new ImBoolean(checked));
+            handCursorIfHovered();
+            showTooltipIfHovered(tooltip);
+            return clicked;
+        } finally {
+            if (checkMarkColor != 0) {
+                ImGui.popStyleColor();
+            }
+        }
+    }
+
+    private static boolean clickableCrossCheckbox(String label, boolean checked, String tooltip) {
+        if (!checked) {
+            return clickableCheckboxValue(label, false, tooltip);
+        }
+
+        float size = ImGui.getFrameHeight();
+        boolean clicked = ImGui.invisibleButton(label, size, size);
+        boolean hovered = ImGui.isItemHovered();
+        boolean active = ImGui.isItemActive();
+        float x0 = ImGui.getItemRectMinX();
+        float y0 = ImGui.getItemRectMinY();
+        float x1 = ImGui.getItemRectMaxX();
+        float y1 = ImGui.getItemRectMaxY();
+        float rounding = ImGui.getStyle().getFrameRounding();
+        int bgColor = ImGui.getColorU32(active
+                ? ImGuiCol.FrameBgActive
+                : (hovered ? ImGuiCol.FrameBgHovered : ImGuiCol.FrameBg));
+
+        ImDrawList drawList = ImGui.getWindowDrawList();
+        drawList.addRectFilled(x0, y0, x1, y1, bgColor, rounding);
+
+        float pad = Math.max(1.0f, (float) (int) (size / 6.0f));
+        renderCrossMark(drawList, x0 + pad, y0 + pad, DENY_CROSS_MARK, size - pad * 2.0f);
+
+        if (hovered) {
+            ImGui.setMouseCursor(ImGuiMouseCursor.Hand);
+            ImGui.setTooltip(tooltip);
+        }
         return clicked;
+    }
+
+    private static void renderCrossMark(ImDrawList drawList, float x, float y, int color, float size) {
+        float thickness = Math.max(size / 5.0f, 1.0f);
+        size -= thickness * 0.5f;
+        x += thickness * 0.25f;
+        y += thickness * 0.25f;
+
+        drawList.pathClear();
+        drawList.pathLineTo(x, y);
+        drawList.pathLineTo(x + size, y + size);
+        drawList.pathStroke(color, 0, thickness);
+
+        drawList.pathClear();
+        drawList.pathLineTo(x + size, y);
+        drawList.pathLineTo(x, y + size);
+        drawList.pathStroke(color, 0, thickness);
     }
 
     private static void handCursorIfHovered() {
@@ -530,9 +599,6 @@ final class ImguiApprovalDialog {
         allow[index].set(forceDeny[index] ? false : initialAllow[index]);
     }
 
-    private static float radioButtonWidth(String label) {
-        return ImGui.getFrameHeight() + ImGui.getStyle().getItemInnerSpacingX() + ImGui.calcTextSize(label).x;
-    }
 
     private List<JarBatchApprovalProtocol.OutLine> buildLines() {
         ArrayList<JarBatchApprovalProtocol.OutLine> out = new ArrayList<>(entries.size());
