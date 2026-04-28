@@ -111,7 +111,7 @@ Examples (block form, these go into Steam launch options):
     Yes - install [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3709229404]Zed's Better ModList[/url] and the status is shown next to each JAR path in the mod list.
 
     [*][b]Supported game versions?[/b]
-    B41, B42.12, B42.13, B42.14, B42.15, B42.16
+    B41, B42.12-B42.17
 
     [*][b]WHY ALL LINKS ARE REMOVED FROM THIS PAGE AND COMMENTS DISABLED???!!![/b]
     Steam does that while it checks a newly uploaded mod version for viruses, I suppose. Everything should return to normal in about 5-10 minutes.
