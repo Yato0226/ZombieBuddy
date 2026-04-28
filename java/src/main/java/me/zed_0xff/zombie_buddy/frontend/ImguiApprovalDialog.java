@@ -1,12 +1,21 @@
 package me.zed_0xff.zombie_buddy.frontend;
 
+import java.awt.image.BufferedImage;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.imageio.ImageIO;
+
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL11;
+
 import me.zed_0xff.zombie_buddy.Agent;
 import me.zed_0xff.zombie_buddy.JarApprovalOutcome;
 import me.zed_0xff.zombie_buddy.JarBatchApprovalProtocol;
+import me.zed_0xff.zombie_buddy.Logger;
 import me.zed_0xff.zombie_buddy.ModApprovalsStore;
 import me.zed_0xff.zombie_buddy.SteamWorkshop;
 
@@ -46,6 +55,9 @@ final class ImguiApprovalDialog {
     private static final String COL_TRUST_AUTHOR = "Trust author";
     private static final String TRUST_AUTHOR_TOOLTIP =
             "Signed mods by that author can be auto-allowed while the signature remains valid and the mod is not banned.";
+    private static final String WATERMARK_ICON_RESOURCE = "zb_icon.png";
+    private static IconTexture watermarkIcon;
+    private static boolean watermarkIconLoadAttempted;
 
     private final List<JarBatchApprovalProtocol.Entry> entries;
     private final ImBoolean[] allow;
@@ -104,6 +116,7 @@ final class ImguiApprovalDialog {
             ImGui.end();
             return;
         }
+        drawWindowIconOverlay();
         centeredText("Review each Java mod before allowing it to load.");
         ImGui.separator();
 
@@ -166,6 +179,25 @@ final class ImguiApprovalDialog {
         if (clickableButton(okLabel, okW, buttonH)) {
             result.compareAndSet(null, buildLines());
             close();
+        }
+    }
+
+    private static void drawWindowIconOverlay() {
+        IconTexture icon = loadWatermarkIcon();
+        if (icon == null) {
+            return;
+        }
+        float size = ImGui.getFrameHeight() * 2;
+        float pad = ImGui.getStyle().getFramePaddingX();
+        float x = ImGui.getWindowPosX() + pad;
+        float y = ImGui.getWindowPosY() + pad * 0.5f;
+
+        ImDrawList drawList = ImGui.getWindowDrawList();
+        drawList.pushClipRectFullScreen();
+        try {
+            drawList.addImage(icon.textureId, x, y, x + size, y + size);
+        } finally {
+            drawList.popClipRect();
         }
     }
 
@@ -509,6 +541,85 @@ final class ImguiApprovalDialog {
         drawList.pathLineTo(x + size, y);
         drawList.pathLineTo(x, y + size);
         drawList.pathStroke(color, 0, thickness);
+    }
+
+    private static IconTexture loadWatermarkIcon() {
+        if (watermarkIconLoadAttempted) {
+            return watermarkIcon;
+        }
+        watermarkIconLoadAttempted = true;
+        try {
+            watermarkIcon = loadIconTexture(WATERMARK_ICON_RESOURCE);
+        } catch (Exception e) {
+            Logger.warn("Could not load ImGui watermark icon: " + e.getMessage());
+            watermarkIcon = null;
+        }
+        return watermarkIcon;
+    }
+
+    private static IconTexture loadIconTexture(String resourceName) throws Exception {
+        try (InputStream in = openResource(resourceName)) {
+            if (in == null) {
+                throw new IllegalStateException("resource not found: " + resourceName);
+            }
+            BufferedImage image = ImageIO.read(in);
+            if (image == null) {
+                throw new IllegalStateException("invalid image: " + resourceName);
+            }
+
+            int width = image.getWidth();
+            int height = image.getHeight();
+            ByteBuffer pixels = BufferUtils.createByteBuffer(width * height * 4);
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int argb = image.getRGB(x, y);
+                    pixels.put((byte) ((argb >> 16) & 0xff));
+                    pixels.put((byte) ((argb >> 8) & 0xff));
+                    pixels.put((byte) (argb & 0xff));
+                    pixels.put((byte) ((argb >> 24) & 0xff));
+                }
+            }
+            pixels.flip();
+
+            int textureId = GL11.glGenTextures();
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+            GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
+            GL11.glTexImage2D(
+                    GL11.GL_TEXTURE_2D,
+                    0,
+                    GL11.GL_RGBA,
+                    width,
+                    height,
+                    0,
+                    GL11.GL_RGBA,
+                    GL11.GL_UNSIGNED_BYTE,
+                    pixels);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
+            return new IconTexture(textureId, width, height);
+        }
+    }
+
+    private static InputStream openResource(String resourceName) {
+        ClassLoader cl = ImguiApprovalDialog.class.getClassLoader();
+        InputStream in = cl.getResourceAsStream(resourceName);
+        if (in != null) {
+            return in;
+        }
+        return cl.getResourceAsStream("resources/" + resourceName);
+    }
+
+    private static final class IconTexture {
+        final int textureId;
+        final int width;
+        final int height;
+
+        IconTexture(int textureId, int width, int height) {
+            this.textureId = textureId;
+            this.width = width;
+            this.height = height;
+        }
     }
 
     private static void handCursorIfHovered() {
