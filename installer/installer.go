@@ -10,14 +10,14 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/andygrunwald/vdf"
+	"github.com/jslay88/vdf"
 	"golang.org/x/sys/windows/registry"
 )
 
 const (
-	PZ_APP_ID = "108600"
-	ZB_MOD_ID = "3619862853"
-    INSTALLER_VERSION = "3.0"
+	PZ_APP_ID         = "108600"
+	ZB_MOD_ID         = "3619862853"
+	INSTALLER_VERSION = "3.0"
 )
 
 func main() {
@@ -157,14 +157,7 @@ func detectZBPath(steamPath string) (string, error) {
 }
 
 func findAppInLibraries(libraryVDFPath string, subPath ...string) (string, error) {
-	f, err := os.Open(libraryVDFPath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	p := vdf.NewParser(f)
-	m, err := p.Parse()
+	m, err := parseVDFMap(libraryVDFPath)
 	if err != nil {
 		return "", err
 	}
@@ -283,14 +276,7 @@ func updateLaunchOptions(steamPath string) error {
 }
 
 func patchVDF(path string) (bool, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return false, err
-	}
-	defer f.Close()
-
-	p := vdf.NewParser(f)
-	m, err := p.Parse()
+	m, err := parseVDFMap(path)
 	if err != nil {
 		return false, err
 	}
@@ -329,6 +315,37 @@ func patchVDF(path string) (bool, error) {
 	}
 
 	return true, manualPatchVDF(path, currentOptions, newOptions)
+}
+
+func parseVDFMap(path string) (map[string]interface{}, error) {
+	m, err := vdf.ParseAutoFile(path)
+	if err != nil {
+		return nil, err
+	}
+	normalized, ok := normalizeVDFValue(m).(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid VDF root")
+	}
+	return normalized, nil
+}
+
+func normalizeVDFValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case vdf.Map:
+		m := make(map[string]interface{}, len(v))
+		for key, child := range v {
+			m[key] = normalizeVDFValue(child)
+		}
+		return m
+	case map[string]interface{}:
+		m := make(map[string]interface{}, len(v))
+		for key, child := range v {
+			m[key] = normalizeVDFValue(child)
+		}
+		return m
+	default:
+		return value
+	}
 }
 
 func navigateMap(m map[string]interface{}, path ...string) (map[string]interface{}, error) {

@@ -1,8 +1,7 @@
 module github.com/zed-0xff/zombie_buddy/installer
 
-go 1.25.0
+go 1.25.5
 
-require (
-	github.com/andygrunwald/vdf v1.1.0
-	golang.org/x/sys v0.40.0
-)
+require golang.org/x/sys v0.40.0
+
+require github.com/jslay88/vdf v1.0.0
