@@ -69,8 +69,8 @@ public class ZombieBuddy {
         return tbl;
     }
 
-    public static ArrayList<String> getJavaMods() {
-        return Loader.getJavaMods();
+    public static ArrayList<String> getActiveJavaMods() {
+        return Loader.getActiveJavaMods();
     }
 
     public static String getClosureFilename(Object obj) {

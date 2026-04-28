@@ -188,7 +188,7 @@ public class Loader {
         return modId == null ? null : g_jarLoadStatus.get(modId);
     }
 
-    static ArrayList<String> getJavaMods() {
+    static ArrayList<String> getActiveJavaMods() {
         return new ArrayList<>(g_jarLoadStatus.keySet());
     }
 

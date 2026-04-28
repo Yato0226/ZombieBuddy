@@ -27,6 +27,9 @@ public final class Utils {
         return LuaManager.GlobalObject.isServer();
     }
 
+    public static boolean isMac() {
+        return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac");
+    }
     /**
      * Compares two version strings.
      * Supports semantic versioning (e.g., "1.0.0", "1.2.3-beta").

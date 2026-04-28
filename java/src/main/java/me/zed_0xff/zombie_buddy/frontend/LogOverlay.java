@@ -24,6 +24,7 @@ import zombie.ui.UIFont;
 public class LogOverlay {
     private static final int MARGIN_LEFT       = 10;
     private static final int MARGIN_BOTTOM     = 10;
+    private static final float TOP_RESERVED    = 0.2f;
     private static final float ALPHA_MAX       = 0.4f;
     private static final long FADE_START_MS    = 4000; // Start fading after (ms)
     private static final long FADE_DURATION_MS = 700; // Fade out over (ms)
@@ -166,6 +167,7 @@ public class LogOverlay {
         var font = textMgr.font.isEmpty() ? UIFont.Small : UIFont.CodeSmall;
         var lineHeight = (int) textMgr.MeasureStringY(font, "Ay") + 2;
         var scrH = Core.getInstance().getScreenHeight();
+        int topLimit = (int) (scrH * TOP_RESERVED);
         int y = scrH - MARGIN_BOTTOM;
         
         // Track pause state to freeze fade timing
@@ -205,13 +207,13 @@ public class LogOverlay {
             }
             
             y -= lineHeight;
-            if (y < 0) break;
+            if (y < topLimit) break;
             
             textMgr.DrawString(font, MARGIN_LEFT, y, line.text, 0.5f, 1.0f, 0.5f, alpha);
         }
         
         // Update maxLines based on how many lines fit on screen
-        int linesOnScreen = (scrH - MARGIN_BOTTOM) / lineHeight;
+        int linesOnScreen = (scrH - MARGIN_BOTTOM - topLimit) / lineHeight;
         if (linesOnScreen > 10) {
             maxLines = linesOnScreen + 10;
         }
