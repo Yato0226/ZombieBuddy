@@ -45,7 +45,7 @@ final class ImguiApprovalDialog {
     private static final int ALLOW_CHECK_MARK = ImColor.rgb(0, 255, 0);
     private static final int DENY_CROSS_MARK  = ImColor.rgb(255, 0, 0);
     private static final float DIALOG_W = 1024.0f;
-    private static final float DIALOG_H = 768.0f;
+    private static final float DIALOG_H = 600.0f;
     private static final float TABLE_ROW_MIN_HEIGHT = 32.0f;
     private static final String COL_MOD = "Mod";
     private static final String COL_AUTHOR = "Author";
