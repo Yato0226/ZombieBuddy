@@ -2,9 +2,12 @@ package me.zed_0xff.zombie_buddy.patches;
 
 import java.io.BufferedInputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 
 import me.zed_0xff.zombie_buddy.*;
 
+import zombie.core.Core;
 import zombie.core.SpriteRenderer;
 import zombie.core.textures.Texture;
 import zombie.ui.TextManager;
@@ -42,7 +45,7 @@ public class Patch_watermark {
         var textMgr  = TextManager.instance;
         var textH    = textMgr.MeasureStringY(font, watermark);
         var iconTex  = loadIcon();
-        var iconSize = 128;
+        var iconSize = isHiRes() ? 128 : 64;
         var textX    = iconSize + 4;
         var textY    = 0;
 
@@ -55,7 +58,36 @@ public class Patch_watermark {
         }
         textMgr.DrawString(font, textX, textY, watermark, 0.5f, 1.0f, 0.5f, 0.4f);
         textY += textH;
-        textMgr.DrawString(font, textX, textY, "active JAVA mods: " + String.join(", ", ZombieBuddy.getActiveJavaMods()), 0.5f, 1.0f, 0.5f, 0.4f);
+        drawActiveJavaMods(font, textMgr, textX, textY, textH);
+    }
+
+    private static void drawActiveJavaMods(UIFont font, TextManager textMgr, int textX, int textY, int lineH) {
+        var mods = activeJavaMods();
+        String prefix = (mods.size() == 0 ? "No" : mods.size()) + " active JAVA mods";
+        if (mods.isEmpty()) {
+            textMgr.DrawString(font, textX, textY, prefix, 0.5f, 1.0f, 0.5f, 0.4f);
+            return;
+        }
+
+        int maxW = Math.max(80, Core.getInstance().getScreenWidth() - textX - 4);
+        String line = prefix + ": ";
+        for (String mod : mods) {
+            String candidate = line + (line.endsWith(": ") || line.isEmpty() ? "" : ", ") + mod;
+            if (!line.endsWith(": ") && textMgr.MeasureStringX(font, candidate) > maxW) {
+                textMgr.DrawString(font, textX, textY, line, 0.5f, 1.0f, 0.5f, 0.4f);
+                textY += lineH;
+                line = mod;
+            } else {
+                line = candidate;
+            }
+        }
+        textMgr.DrawString(font, textX, textY, line, 0.5f, 1.0f, 0.5f, 0.4f);
+    }
+
+    private static ArrayList<String> activeJavaMods() {
+        var mods = new ArrayList<>(ZombieBuddy.getActiveJavaMods());
+        Collections.sort(mods);
+        return mods;
     }
 
     private static Texture loadIcon() {
@@ -74,6 +106,10 @@ public class Patch_watermark {
             icon = null;
         }
         return icon;
+    }
+
+    private static boolean isHiRes() {
+        return Core.getInstance().getScreenWidth() > 1280;
     }
 
     @Patch(className = "zombie.core.Core", methodName = "EndFrameUI")

@@ -189,7 +189,14 @@ public class Loader {
     }
 
     static ArrayList<String> getActiveJavaMods() {
-        return new ArrayList<>(g_jarLoadStatus.keySet());
+        ArrayList<String> out = new ArrayList<>();
+        for (Map.Entry<String, JavaModLoadState> entry : g_jarLoadStatus.entrySet()) {
+            JavaModLoadState state = entry.getValue();
+            if (state != null && state.loaded) {
+                out.add(entry.getKey());
+            }
+        }
+        return out;
     }
 
     /** Shown on the loading screen while batch or native approval UI is blocking. */
