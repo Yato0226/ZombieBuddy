@@ -3,6 +3,9 @@
 
 HMODULE hOrig = NULL;
 
+#define ZB_JAR "ZombieBuddy.jar"
+#define AGENT_OPTIONS_MAX 2048
+
 // Minimal DllMain to prevent CRT initialization
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
     return TRUE;
@@ -12,6 +15,10 @@ int  (*pAgent_OnAttach)(void*, char*, void*) = NULL;
 int  (*pAgent_OnLoad)(void*, char*, void*)   = NULL;
 void (*pAgent_OnUnload)(void*)               = NULL;
 
+void write_msg(const char* msg) {
+    WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), msg, lstrlenA(msg), NULL, NULL);
+}
+
 void init_instrument_dll() {
     if (hOrig) return; // already loaded
 
@@ -20,7 +27,7 @@ void init_instrument_dll() {
     SetDllDirectoryA(NULL);
 
     if (!hOrig) {
-        WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), "[zbNative] Failed to load instrument.dll\n", 28, NULL, NULL);
+        write_msg("[zbNative] Failed to load instrument.dll\n");
         return;
     }
 
@@ -40,14 +47,33 @@ void check_and_apply_update(const char* jarPath) {
     }
 
     // Update is pending - apply it
-    WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), "[zbNative] Pending update detected, applying...\n", 50, NULL, NULL);
+    write_msg("[zbNative] Pending update detected, applying...\n");
 
     // Rename .new file to JAR file, replacing existing file if it exists
     if (MoveFileExA(newJarPath, jarPath, MOVEFILE_REPLACE_EXISTING)) {
-        WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), "[zbNative] Successfully applied update\n", 40, NULL, NULL);
+        write_msg("[zbNative] Successfully applied update\n");
     } else {
-        WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), "[zbNative] Error: Failed to apply update\n", 42, NULL, NULL);
+        write_msg("[zbNative] Error: Failed to apply update\n");
     }
+}
+
+int build_agent_options(const char* tail, char* out, int outSize) {
+    int jarLen = lstrlenA(ZB_JAR);
+    int tailLen = tail == NULL ? 0 : lstrlenA(tail);
+    int needsArgs = tailLen > 0;
+    int totalLen = jarLen + (needsArgs ? 1 + tailLen : 0);
+
+    if (totalLen + 1 > outSize) {
+        write_msg("[zbNative] Error: agent options are too long\n");
+        return 0;
+    }
+
+    lstrcpyA(out, ZB_JAR);
+    if (needsArgs) {
+        out[jarLen] = '=';
+        lstrcpyA(out + jarLen + 1, tail);
+    }
+    return 1;
 }
 
 __declspec(dllexport) int Agent_OnLoad(void* jvm, char* tail, void* reserved) {
@@ -59,10 +85,14 @@ __declspec(dllexport) int Agent_OnLoad(void* jvm, char* tail, void* reserved) {
     }
 
     // Check for pending update before loading the agent
-    const char* jarPath = tail == NULL ? "ZombieBuddy.jar" : tail;
-    check_and_apply_update(jarPath);
+    check_and_apply_update(ZB_JAR);
 
-    return pAgent_OnLoad(jvm, (char*)jarPath, reserved);
+    char agentOptions[AGENT_OPTIONS_MAX];
+    if (!build_agent_options(tail, agentOptions, sizeof(agentOptions))) {
+        return -1;
+    }
+
+    return pAgent_OnLoad(jvm, agentOptions, reserved);
 }
 
 __declspec(dllexport) int Agent_OnAttach(void* jvm, char* args, void* reserved) {
@@ -73,7 +103,12 @@ __declspec(dllexport) int Agent_OnAttach(void* jvm, char* args, void* reserved) 
         return -1;
     }
 
-    return pAgent_OnAttach(jvm, args == NULL ? "ZombieBuddy.jar" : args, reserved);
+    char agentOptions[AGENT_OPTIONS_MAX];
+    if (!build_agent_options(args, agentOptions, sizeof(agentOptions))) {
+        return -1;
+    }
+
+    return pAgent_OnAttach(jvm, agentOptions, reserved);
 }
 
 __declspec(dllexport) void Agent_OnUnload(void* jvm) {
